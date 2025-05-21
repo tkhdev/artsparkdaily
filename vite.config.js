@@ -1,19 +1,28 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { randomFillSync } from 'crypto';
+import { randomFillSync } from 'crypto'
 
-if (typeof crypto === 'undefined') {
-  global.crypto = {};
+// Wrap the polyfill in a plugin for proper timing during build
+function polyfillCryptoGetRandomValues() {
+  return {
+    name: 'polyfill-crypto-getRandomValues',
+    configResolved() {
+      if (typeof globalThis.crypto === 'undefined') {
+        globalThis.crypto = {};
+      }
+      if (!globalThis.crypto.getRandomValues) {
+        globalThis.crypto.getRandomValues = (arr) => {
+          randomFillSync(arr);
+          return arr;
+        };
+      }
+    }
+  }
 }
 
-if (!crypto.getRandomValues) {
-  crypto.getRandomValues = (arr) => {
-    randomFillSync(arr);
-    return arr;
-  };
-}
-
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    polyfillCryptoGetRandomValues()
+  ],
 })
