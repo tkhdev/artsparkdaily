@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { randomFillSync } from 'crypto'
 
 // Wrap the polyfill in a plugin for proper timing during build
@@ -23,6 +24,8 @@ function polyfillCryptoGetRandomValues() {
 export default defineConfig({
   plugins: [
     react(),
-    polyfillCryptoGetRandomValues()
+    polyfillCryptoGetRandomValues(),
+    tailwindcss(),
+    
   ],
 })
