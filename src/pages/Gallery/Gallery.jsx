@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import GlowButton from "../../components/GlowButton/GlowButton";
 
 export default function Gallery() {
   // Sample artwork data with categories
@@ -8,29 +9,29 @@ export default function Gallery() {
       title: "Sunset Dream",
       artist: "Artist1",
       imageUrl: "https://picsum.photos/200/200",
-      category: "Nature",
+      category: "Nature"
     },
     {
       id: 2,
       title: "Mystic Forest",
       artist: "Artist2",
       imageUrl: "https://picsum.photos/200/200",
-      category: "Nature",
+      category: "Nature"
     },
     {
       id: 3,
       title: "Urban Mirage",
       artist: "Artist3",
       imageUrl: "https://picsum.photos/200/200",
-      category: "Urban",
+      category: "Urban"
     },
     {
       id: 4,
       title: "Cosmic Voyage",
       artist: "Artist4",
       imageUrl: "https://picsum.photos/200/200",
-      category: "Space",
-    },
+      category: "Space"
+    }
     // Add additional artworks as needed
   ];
 
@@ -106,9 +107,9 @@ export default function Gallery() {
             <div className="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
               <h3 className="text-xl font-bold text-white">{art.title}</h3>
               <p className="text-gray-300 text-sm">By {art.artist}</p>
-              <button className="mt-2 glow-button bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-full">
+              <GlowButton className="mt-2 glow-button bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-full">
                 View Details
-              </button>
+              </GlowButton>
             </div>
           </div>
         ))}
