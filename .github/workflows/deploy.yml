@@ -23,11 +23,6 @@ jobs:
 
       - name: Build project
         run: npm run build
-
-      - name: Deploy to Firebase Hosting
-        run: |
-          curl -sL https://firebase.tools | bash
-          firebase deploy --only hosting --token ${{ secrets.FIREBASE_TOKEN }}
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
@@ -37,3 +32,8 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.FIREBASE_MEASUREMENT_ID }}
           CI: false
+
+      - name: Deploy to Firebase Hosting
+        run: |
+          curl -sL https://firebase.tools | bash
+          firebase deploy --only hosting --token ${{ secrets.FIREBASE_TOKEN }}
