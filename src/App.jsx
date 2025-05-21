@@ -1,16 +1,26 @@
-import React, { useEffect } from 'react';
-import { analytics, logEvent } from './firebase-config';
+import React, { useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { analytics, logEvent } from "./firebase-config";
+
+import Layout from "./components/Layout/Layout";
+import Home from "./pages/Home/Home";
+import Gallery from "./pages/Gallery/Gallery";
 
 function App() {
   useEffect(() => {
     // Log a page view event correctly
-    logEvent(analytics, 'page_view');
+    logEvent(analytics, "page_view");
   }, []);
 
   return (
-    <div>
-      <h1>Welcome to ArtSparkDaily</h1>
-    </div>
+    <Router>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/gallery" element={<Gallery />} />
+        </Routes>
+      </Layout>
+    </Router>
   );
 }
 
