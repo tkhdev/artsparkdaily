@@ -1,8 +1,18 @@
 import { NavLink } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faUserCircle, faBars } from "@fortawesome/free-solid-svg-icons";
+import {
+  faUserCircle,
+  faBars,
+  faSignOut
+} from "@fortawesome/free-solid-svg-icons";
+
+import { useAuth } from "../../context/AuthContext";
+import { useAuthActions } from "../../hooks/useAuthActions";
 
 function Header() {
+  const { user, loading } = useAuth();
+  const { loginWithGoogle, logout } = useAuthActions();
+
   return (
     <nav className="bg-black/30 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -56,13 +66,31 @@ function Header() {
               Community
             </NavLink>
           </div>
+
           <div className="flex items-center space-x-4">
-            <div className="hidden md:block">
-              <button className="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 flex items-center space-x-2 transition duration-300">
-                <FontAwesomeIcon icon={faUserCircle} />
-                <span>Sign In</span>
-              </button>
-            </div>
+            {!loading && (
+              <div className="hidden md:block">
+                {user ? (
+                  <>
+                    <button
+                      className="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 flex items-center space-x-2 transition duration-300"
+                      onClick={logout}
+                    >
+                      <FontAwesomeIcon icon={faSignOut} />
+                      <span>Logout</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 flex items-center space-x-2 transition duration-300"
+                    onClick={loginWithGoogle}
+                  >
+                    <FontAwesomeIcon icon={faUserCircle} />
+                    <span>Sign In</span>
+                  </button>
+                )}
+              </div>
+            )}
             <button className="md:hidden text-gray-300 hover:text-white">
               <FontAwesomeIcon icon={faBars} />
             </button>
