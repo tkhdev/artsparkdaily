@@ -6,43 +6,6 @@ body {
   color: #fff;
 }
 
-.prompt-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.glow-button {
-  position: relative;
-  z-index: 1;
-  overflow: hidden;
-}
-
-.glow-button::after {
-  content: "";
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: conic-gradient(
-    from 90deg,
-    #ff6b6b,
-    #feca57,
-    #48dbfb,
-    #1dd1a1,
-    #ff6b6b
-  );
-  z-index: -1;
-  animation: rotate 4s linear infinite;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.glow-button:hover::after {
-  opacity: 1;
-}
-
 @keyframes rotate {
   from {
     transform: rotate(0deg);
@@ -50,26 +13,4 @@ body {
   to {
     transform: rotate(360deg);
   }
-}
-
-.art-card {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.art-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-}
-
-.hero-gradient {
-  background: linear-gradient(90deg, #ff9a8b 0%, #ff6a88 55%, #ff99ac 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.counter-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(5px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
