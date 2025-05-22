@@ -1,19 +1,34 @@
-import { doc, updateDoc } from "firebase/firestore";
+import { useState, useEffect } from "react";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase-config";
-import { useAuth } from "../context/AuthContext";
 
-export const useUserProfile = () => {
-  const { user, profile, dispatch } = useAuth();
+export const useUserProfile = (uid) => {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const updateProfile = async (updatedFields) => {
-    if (!user) return;
+  useEffect(() => {
+    if (!uid) return;
 
-    const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, updatedFields);
+    const fetchProfile = async () => {
+      setLoading(true);
+      try {
+        const docRef = doc(db, "users", uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setProfile(docSnap.data());
+        } else {
+          setProfile(null);
+        }
+      } catch (err) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Update context
-    dispatch({ type: "SET_PROFILE", payload: { ...updatedFields } });
-  };
+    fetchProfile();
+  }, [uid]);
 
-  return { updateProfile, profile };
+  return { profile, loading, error };
 };

@@ -21,7 +21,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/gallery" element={<Gallery />} />
-            <Route path="/profile" element={<UserProfile />} />
+            <Route path="/profile/:uid?" element={<UserProfile />} />
           </Routes>
         </Layout>
       </Router>

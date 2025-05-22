@@ -3,9 +3,11 @@ import { db } from "../firebase-config";
 import { signInWithPopup, signOut } from "firebase/auth";
 import { auth, googleProvider } from "../firebase-config";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export const useAuthActions = () => {
   const { dispatch } = useAuth();
+  const navigate = useNavigate();
 
   const createUserProfileIfNotExists = async (user) => {
     const userRef = doc(db, "users", user.uid);
@@ -38,6 +40,7 @@ export const useAuthActions = () => {
   const logout = async () => {
     await signOut(auth);
     dispatch({ type: "LOGOUT" });
+    navigate("/"); // Redirect to home
   };
 
   return { loginWithGoogle, logout };
