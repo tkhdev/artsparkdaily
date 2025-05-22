@@ -11,6 +11,7 @@ import {
   faUpload,
   faUserCircle,
 } from "@fortawesome/free-solid-svg-icons";
+import { useUserProfile } from "../../hooks/useUserProfile";
 
 const achievements = [
   {
@@ -71,6 +72,7 @@ const submissions = [
 ];
 
 export default function UserProfile() {
+  const { profile } = useUserProfile();
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState("Alexandra Swift");
   const [bio, setBio] = useState(
