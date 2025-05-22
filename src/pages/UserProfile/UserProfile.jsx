@@ -9,96 +9,49 @@ import {
   faStar,
   faThumbsUp,
   faMedal,
-  faUpload,
-  faUserCircle
+  faUpload
 } from "@fortawesome/free-solid-svg-icons";
 import { useUserProfile } from "../../hooks/useUserProfile";
 import { useAuth } from "../../context/AuthContext";
 import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
+import toast, { Toaster } from "react-hot-toast";
 
 const achievements = [
-  {
-    id: 1,
-    title: "7-Day Streak",
-    desc: "Completed daily challenge 7 days in a row",
-    icon: faFire,
-    unlocked: true
-  },
-  {
-    id: 2,
-    title: "Top Liked Artist",
-    desc: "100+ likes on your submissions",
-    icon: faThumbsUp,
-    unlocked: true
-  },
-  {
-    id: 3,
-    title: "First Submission",
-    desc: "Shared your first AI art creation",
-    icon: faUserCircle,
-    unlocked: true
-  },
-  {
-    id: 4,
-    title: "Legendary Creator",
-    desc: "Featured on the leaderboard top 10",
-    icon: faStar,
-    unlocked: false
-  }
+  { icon: faFire, label: "Daily Streak", value: "8 days" },
+  { icon: faStar, label: "Top Submission", value: "256 likes" },
+  { icon: faThumbsUp, label: "Total Likes", value: "1,024" },
+  { icon: faMedal, label: "Challenges Won", value: "3" }
 ];
 
 const submissions = [
-  {
-    id: 1,
-    title: "Mystic Forest",
-    img: "https://picsum.photos/id/1040/200/200",
-    likes: 45
-  },
-  {
-    id: 2,
-    title: "Neon Lights",
-    img: "https://picsum.photos/id/1041/200/200",
-    likes: 32
-  },
-  {
-    id: 3,
-    title: "Sunset Blaze",
-    img: "https://picsum.photos/id/1042/200/200",
-    likes: 51
-  },
-  {
-    id: 4,
-    title: "Cyber City",
-    img: "https://picsum.photos/id/1043/200/200",
-    likes: 60
-  }
+  { id: 1, title: "Neon Jungle", img: "https://picsum.photos/id/1043/200/200", likes: 256 },
+  { id: 2, title: "Cyber Fox", img: "https://picsum.photos/id/1043/200/200", likes: 198 },
+  { id: 3, title: "Pastel Samurai", img: "https://picsum.photos/id/1043/200/200", likes: 142 }
 ];
 
 export default function UserProfile() {
   const { uid: paramUid } = useParams();
   const { user } = useAuth();
-
   const viewingOwnProfile = !paramUid || paramUid === user?.uid;
   const targetUid = paramUid || user?.uid;
 
   const { updateProfile } = useOwnUserProfile(targetUid);
   const { profile } = useUserProfile(targetUid);
   const [isEditing, setIsEditing] = useState(false);
-
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [profilePic, setProfilePic] = useState("");
   const [uploadPreview, setUploadPreview] = useState(null);
 
   useEffect(() => {
-  if (profile) {
-    setDisplayName(profile.displayName || "");
-    setBio(profile.bio || "");
-    setProfilePic(profile.profilePic || "https://i.pravatar.cc/150?img=1");
-    setUploadPreview(null); // Clear preview on user switch
-    setIsEditing(false); // Exit edit mode when user/profile changes
-  }
-}, [profile, targetUid]);
+    if (profile) {
+      setDisplayName(profile.displayName || "");
+      setBio(profile.bio || "");
+      setProfilePic(profile.profilePic || "https://i.pravatar.cc/150?img=1");
+      setUploadPreview(null);
+      setIsEditing(false);
+    }
+  }, [profile, targetUid]);
 
   const stats = {
     submissions: submissions.length,
@@ -107,7 +60,7 @@ export default function UserProfile() {
   };
 
   function handleImageChange(e) {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (file) {
       setUploadPreview(URL.createObjectURL(file));
       // TODO: upload to Firebase Storage
@@ -125,27 +78,22 @@ export default function UserProfile() {
 
   async function saveChanges() {
     try {
-      await updateProfile({
-        displayName,
-        bio
-        // profilePic should be handled after uploading to Firebase Storage
-      });
+      await updateProfile({ displayName, bio });
+      toast.success("Profile updated successfully!");
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to update profile:", error);
+      toast.error("Failed to save profile. Please try again.");
     }
   }
 
   return (
-    <main className="max-w-6xl mx-auto p-8 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-800 rounded-3xl shadow-2xl text-gray-100 select-none my-8">
-      {/* PROFILE HEADER */}
+    <main className="max-w-6xl mx-auto p-8 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-800 rounded-3xl shadow-2xl text-gray-100 my-8 select-none">
+      <Toaster position="top-center" reverseOrder={false} />
+
       <section className="flex flex-col md:flex-row items-center gap-12 md:gap-20">
         <div className="relative w-48 h-48 rounded-full overflow-hidden border-8 border-pink-600 shadow-xl hover:scale-105 transition-transform duration-300">
-          <img
-            src={uploadPreview || profilePic}
-            alt="Profile"
-            className="object-cover w-full h-full"
-          />
+          <img src={uploadPreview || profilePic} alt="Profile" className="object-cover w-full h-full" />
           {isEditing && (
             <>
               <label
@@ -169,8 +117,8 @@ export default function UserProfile() {
         <div className="flex-1 space-y-6 select-text">
           {!isEditing ? (
             <>
-              <h1 className="text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-purple-400 drop-shadow-lg">
-                {displayName}
+              <h1 className="text-5xl font-extrabold drop-shadow-lg">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">{displayName}</span>
               </h1>
               <p className="text-lg text-pink-300 leading-relaxed whitespace-pre-line min-h-[5rem]">
                 {bio || "No bio available. Add something about yourself!"}
@@ -178,7 +126,6 @@ export default function UserProfile() {
               {viewingOwnProfile && (
                 <button
                   onClick={toggleEdit}
-                  aria-label="Edit Profile"
                   className="inline-flex items-center gap-3 bg-gradient-to-r from-pink-600 to-purple-700 hover:from-pink-700 hover:to-purple-800 active:scale-95 transition-transform duration-200 rounded-full px-8 py-3 font-semibold shadow-lg text-white select-none"
                 >
                   <FontAwesomeIcon icon={faPen} />
@@ -190,19 +137,19 @@ export default function UserProfile() {
             <>
               <input
                 type="text"
+                maxLength={100}
                 className="w-full rounded-xl bg-pink-900/60 border border-pink-600 text-white text-3xl font-bold px-6 py-4 placeholder-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-600 transition"
                 placeholder="Display Name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                maxLength={40}
               />
               <textarea
+                maxLength={1000}
                 className="w-full rounded-xl bg-pink-900/60 border border-pink-600 text-pink-100 text-lg px-6 py-4 resize-y placeholder-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-600 transition"
                 placeholder="Write something about yourself..."
                 rows={4}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                maxLength={180}
               />
               <div className="flex gap-6 mt-6 justify-start">
                 <button
@@ -225,113 +172,25 @@ export default function UserProfile() {
         </div>
       </section>
 
-      {/* USER STATISTICS */}
-      <section className="mt-20 bg-pink-900/30 rounded-3xl p-10 shadow-inner backdrop-blur-sm select-text">
-        <h2 className="text-4xl font-bold text-pink-300 mb-10">Stats</h2>
-        <div className="flex justify-center gap-20 max-w-4xl mx-auto text-center">
-          {/* Submissions */}
-          <div className="space-y-2">
-            <FontAwesomeIcon
-              icon={faMedal}
-              size="4x"
-              className="text-pink-400 drop-shadow-lg"
-            />
-            <p className="text-5xl font-extrabold text-white">
-              {stats.submissions}
-            </p>
-            <p className="uppercase text-pink-300 tracking-widest font-semibold text-sm">
-              Submissions
-            </p>
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12 text-center">
+        {achievements.map((achieve, i) => (
+          <div key={i} className="bg-pink-900/60 rounded-2xl p-6 shadow-inner hover:scale-105 transition-transform">
+            <FontAwesomeIcon icon={achieve.icon} className="text-pink-400 text-3xl mb-3" />
+            <h3 className="font-bold text-pink-300">{achieve.label}</h3>
+            <p className="text-lg text-white font-semibold">{achieve.value}</p>
           </div>
-
-          {/* Likes */}
-          <div className="space-y-2">
-            <FontAwesomeIcon
-              icon={faThumbsUp}
-              size="4x"
-              className="text-pink-400 drop-shadow-lg"
-            />
-            <p className="text-5xl font-extrabold text-white">{stats.likes}</p>
-            <p className="uppercase text-pink-300 tracking-widest font-semibold text-sm">
-              Likes Received
-            </p>
-          </div>
-
-          {/* Streak */}
-          <div className="space-y-2">
-            <FontAwesomeIcon
-              icon={faFire}
-              size="4x"
-              className="text-pink-400 drop-shadow-lg"
-            />
-            <p className="text-5xl font-extrabold text-white">{stats.streak}</p>
-            <p className="uppercase text-pink-300 tracking-widest font-semibold text-sm">
-              Current Streak
-            </p>
-          </div>
-        </div>
+        ))}
       </section>
 
-      {/* ACHIEVEMENTS */}
-      <section className="mt-20">
-        <h2 className="text-4xl font-bold text-pink-300 mb-10 select-text">
-          Achievements
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-          {achievements.map(({ id, title, desc, icon, unlocked }) => (
-            <div
-              key={id}
-              className={`p-8 rounded-3xl shadow-lg cursor-default select-text transition-transform duration-300
-                ${
-                  unlocked
-                    ? "bg-gradient-to-br from-pink-600 to-purple-700 hover:scale-[1.08] shadow-pink-500"
-                    : "bg-pink-900 opacity-50 cursor-not-allowed"
-                }`}
-              title={unlocked ? desc : "Achievement locked"}
-            >
-              <FontAwesomeIcon
-                icon={icon}
-                size="4x"
-                className={`mb-6 drop-shadow-lg ${
-                  unlocked ? "text-yellow-400" : "text-pink-700"
-                }`}
-              />
-              <h3
-                className={`text-2xl font-semibold ${
-                  unlocked ? "text-white" : "text-pink-400"
-                }`}
-              >
-                {title}
-              </h3>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* SUBMISSIONS GALLERY */}
-      <section className="mt-20">
-        <h2 className="text-4xl font-bold text-pink-300 mb-10 select-text">
-          Submissions
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-          {submissions.map(({ id, title, img, likes }) => (
-            <div
-              key={id}
-              className="rounded-3xl overflow-hidden shadow-xl bg-pink-900 hover:scale-[1.07] transition-transform duration-300 cursor-pointer"
-              title={`${title} - ${likes} likes`}
-            >
-              <img
-                src={img}
-                alt={title}
-                loading="lazy"
-                className="w-full h-48 object-cover"
-              />
-              <div className="p-5 flex justify-between items-center text-pink-300 font-semibold text-lg">
-                <span className="truncate">{title}</span>
-                <span className="flex items-center gap-2 text-yellow-400">
-                  <FontAwesomeIcon icon={faThumbsUp} />
-                  {likes}
-                </span>
+      <section className="mt-16">
+        <h2 className="text-3xl font-bold text-pink-300 mb-6">Submissions</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+          {submissions.map((sub) => (
+            <div key={sub.id} className="relative group rounded-2xl overflow-hidden shadow-xl">
+              <img src={sub.img} alt={sub.title} className="w-full h-64 object-cover transition-transform group-hover:scale-105" />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                <h3 className="text-white font-bold text-lg">{sub.title}</h3>
+                <p className="text-pink-300 text-sm">{sub.likes} likes</p>
               </div>
             </div>
           ))}

@@ -3,4 +3,5 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  line-height: normal;
 }
