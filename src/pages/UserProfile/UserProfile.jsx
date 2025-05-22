@@ -16,6 +16,9 @@ import { useAuth } from "../../context/AuthContext";
 import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
 import toast, { Toaster } from "react-hot-toast";
 
+// Firebase storage imports (added deleteObject)
+import { storage, ref, uploadBytes, getDownloadURL, deleteObject } from "../../firebase-config";
+
 const achievements = [
   { icon: faFire, label: "Daily Streak", value: "8 days" },
   { icon: faStar, label: "Top Submission", value: "256 likes" },
@@ -24,9 +27,24 @@ const achievements = [
 ];
 
 const submissions = [
-  { id: 1, title: "Neon Jungle", img: "https://picsum.photos/id/1043/200/200", likes: 256 },
-  { id: 2, title: "Cyber Fox", img: "https://picsum.photos/id/1043/200/200", likes: 198 },
-  { id: 3, title: "Pastel Samurai", img: "https://picsum.photos/id/1043/200/200", likes: 142 }
+  {
+    id: 1,
+    title: "Neon Jungle",
+    img: "https://picsum.photos/id/1043/200/200",
+    likes: 256
+  },
+  {
+    id: 2,
+    title: "Cyber Fox",
+    img: "https://picsum.photos/id/1043/200/200",
+    likes: 198
+  },
+  {
+    id: 3,
+    title: "Pastel Samurai",
+    img: "https://picsum.photos/id/1043/200/200",
+    likes: 142
+  }
 ];
 
 export default function UserProfile() {
@@ -42,6 +60,7 @@ export default function UserProfile() {
   const [bio, setBio] = useState("");
   const [profilePic, setProfilePic] = useState("");
   const [uploadPreview, setUploadPreview] = useState(null);
+  const [uploadFile, setUploadFile] = useState(null);
 
   useEffect(() => {
     if (profile) {
@@ -49,6 +68,7 @@ export default function UserProfile() {
       setBio(profile.bio || "");
       setProfilePic(profile.profilePic || "https://i.pravatar.cc/150?img=1");
       setUploadPreview(null);
+      setUploadFile(null);
       setIsEditing(false);
     }
   }, [profile, targetUid]);
@@ -61,10 +81,25 @@ export default function UserProfile() {
 
   function handleImageChange(e) {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadPreview(URL.createObjectURL(file));
-      // TODO: upload to Firebase Storage
+    if (!file) return;
+
+    // Validate file type (must be image)
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are allowed.");
+      e.target.value = null; // reset input
+      return;
     }
+
+    // Validate file size (max 5 MB)
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+      toast.error("File size should be less than 5 MB.");
+      e.target.value = null;
+      return;
+    }
+
+    setUploadPreview(URL.createObjectURL(file));
+    setUploadFile(file);
   }
 
   function toggleEdit() {
@@ -73,14 +108,49 @@ export default function UserProfile() {
 
   function cancelEdit() {
     setUploadPreview(null);
+    setUploadFile(null);
     setIsEditing(false);
   }
 
   async function saveChanges() {
     try {
-      await updateProfile({ displayName, bio });
+      let profilePicUrl = profilePic;
+
+      if (uploadFile) {
+        // Delete previous image from Storage if it is not the default avatar URL
+        if (
+          profilePic &&
+          !profilePic.includes("pravatar.cc") && // default avatar URL check
+          profilePic.startsWith("https://firebasestorage.googleapis.com")
+        ) {
+          try {
+            // Extract file path from URL
+            const startIndex = profilePic.indexOf("/o/") + 3; // after /o/
+            const endIndex = profilePic.indexOf("?", startIndex);
+            const filePath = decodeURIComponent(profilePic.substring(startIndex, endIndex));
+
+            const oldRef = ref(storage, filePath);
+            await deleteObject(oldRef);
+            console.log("Old profile picture deleted from storage.");
+          } catch (delError) {
+            console.warn("Failed to delete old profile picture:", delError);
+          }
+        }
+
+        // Upload new file to Firebase Storage
+        const storageRef = ref(storage, `profile-pictures/${targetUid}/${uploadFile.name}`);
+        await uploadBytes(storageRef, uploadFile);
+        profilePicUrl = await getDownloadURL(storageRef);
+      }
+
+      // Save displayName, bio, and profilePic URL
+      await updateProfile({ displayName, bio, profilePic: profilePicUrl });
+
       toast.success("Profile updated successfully!");
       setIsEditing(false);
+      setUploadFile(null);
+      setUploadPreview(null);
+      setProfilePic(profilePicUrl);
     } catch (error) {
       console.error("Failed to update profile:", error);
       toast.error("Failed to save profile. Please try again.");
@@ -93,7 +163,11 @@ export default function UserProfile() {
 
       <section className="flex flex-col md:flex-row items-center gap-12 md:gap-20">
         <div className="relative w-48 h-48 rounded-full overflow-hidden border-8 border-pink-600 shadow-xl hover:scale-105 transition-transform duration-300">
-          <img src={uploadPreview || profilePic} alt="Profile" className="object-cover w-full h-full" />
+          <img
+            src={uploadPreview || profilePic}
+            alt="Profile"
+            className="object-cover w-full h-full"
+          />
           {isEditing && (
             <>
               <label
@@ -118,7 +192,9 @@ export default function UserProfile() {
           {!isEditing ? (
             <>
               <h1 className="text-5xl font-extrabold drop-shadow-lg">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">{displayName}</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">
+                  {displayName}
+                </span>
               </h1>
               <p className="text-lg text-pink-300 leading-relaxed whitespace-pre-line min-h-[5rem]">
                 {bio || "No bio available. Add something about yourself!"}
@@ -174,10 +250,20 @@ export default function UserProfile() {
 
       <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12 text-center">
         {achievements.map((achieve, i) => (
-          <div key={i} className="bg-pink-900/60 rounded-2xl p-6 shadow-inner hover:scale-105 transition-transform">
-            <FontAwesomeIcon icon={achieve.icon} className="text-pink-400 text-3xl mb-3" />
-            <h3 className="font-bold text-pink-300">{achieve.label}</h3>
-            <p className="text-lg text-white font-semibold">{achieve.value}</p>
+          <div
+            key={i}
+            className="bg-pink-900 rounded-2xl p-6 shadow-xl hover:scale-105 transition-transform relative border-2 border-pink-500"
+          >
+            <FontAwesomeIcon
+              icon={achieve.icon}
+              className="text-pink-200 text-3xl mb-3 drop-shadow-[0_0_6px_rgba(255,192,203,0.8)]"
+            />
+            <h3 className="font-bold text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.7)]">
+              {achieve.label}
+            </h3>
+            <p className="text-white font-semibold text-lg drop-shadow-[0_0_5px_rgba(0,0,0,0.8)]">
+              {achieve.value}
+            </p>
           </div>
         ))}
       </section>
@@ -186,8 +272,15 @@ export default function UserProfile() {
         <h2 className="text-3xl font-bold text-pink-300 mb-6">Submissions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
           {submissions.map((sub) => (
-            <div key={sub.id} className="relative group rounded-2xl overflow-hidden shadow-xl">
-              <img src={sub.img} alt={sub.title} className="w-full h-64 object-cover transition-transform group-hover:scale-105" />
+            <div
+              key={sub.id}
+              className="relative group rounded-2xl overflow-hidden shadow-xl"
+            >
+              <img
+                src={sub.img}
+                alt={sub.title}
+                className="w-full h-64 object-cover transition-transform group-hover:scale-105"
+              />
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                 <h3 className="text-white font-bold text-lg">{sub.title}</h3>
                 <p className="text-pink-300 text-sm">{sub.likes} likes</p>
