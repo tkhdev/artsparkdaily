@@ -28,7 +28,7 @@ jobs:
         if: steps.filter.outputs.changes == 'true'
         uses: actions/setup-node@v3
         with:
-          node-version: '18' # Firebase functions typically use 18 or 16
+          node-version: '20'
 
       - name: Install dependencies
         if: steps.filter.outputs.changes == 'true'
