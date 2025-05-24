@@ -35,7 +35,7 @@ export default function DailyChallengeCard() {
     canGenerate,
     generateImage,
     fetchAttemptsUsed
-  } = usePollinationsImage();
+  } = usePollinationsImage(challenge?.id);
 
   // Submission hook (now focused only on submissions)
   const {
@@ -378,7 +378,7 @@ export default function DailyChallengeCard() {
               />
               <p className="text-gray-400 text-sm mt-2">
                 Submitted at{" "}
-                {userSubmission.createdAt?.toDate().toLocaleString()}
+                {userSubmission.createdAt?.toDate()?.toLocaleString()}
               </p>
             </div>
           )}

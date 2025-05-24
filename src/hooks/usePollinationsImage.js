@@ -1,5 +1,4 @@
-// hooks/usePollinationsImage.js
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { httpsCallable } from "firebase/functions";
 import { doc, getDoc } from "firebase/firestore";
 import { functions, db } from "../firebase-config";
@@ -10,7 +9,7 @@ const trackGenerationAttempt = httpsCallable(
   "trackGenerationAttempt"
 );
 
-export default function usePollinationsImage() {
+export default function usePollinationsImage(challengeId) {
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -19,7 +18,7 @@ export default function usePollinationsImage() {
   const { user } = useAuth();
 
   // Fetch user's generation attempts for a specific challenge
-  const fetchAttemptsUsed = useCallback(async (challengeId) => {
+  const fetchAttemptsUsed = useCallback(async () => {
     if (!user || !challengeId) {
       setAttemptsUsed(0);
       return;
@@ -46,9 +45,9 @@ export default function usePollinationsImage() {
     } finally {
       setAttemptsLoading(false);
     }
-  }, []);
+  }, [user, challengeId]);
 
-  const generateImage = async (prompt, challengeId) => {
+  const generateImage = async (prompt) => {
     if (!prompt || !challengeId) {
       setError("Prompt and challenge ID are required");
       return;
@@ -59,7 +58,6 @@ export default function usePollinationsImage() {
       return;
     }
 
-    // Check if user has attempts remaining
     if (attemptsUsed >= 5) {
       setError("You have used all your generation attempts for this challenge");
       return;
@@ -69,20 +67,14 @@ export default function usePollinationsImage() {
     setError(null);
 
     try {
-      // First, track the generation attempt (this will increment the counter)
       await trackGenerationAttempt({ challengeId });
 
-      // Update local attempts counter
       setAttemptsUsed((prev) => prev + 1);
 
-      // Clean and encode the prompt
       const cleanPrompt = prompt.trim().replace(/[^\w\s,-]/g, "");
       const encodedPrompt = encodeURIComponent(cleanPrompt);
-
-      // Generate image using Pollinations API
       const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${Date.now()}`;
 
-      // Preload the image to ensure it's ready
       const img = new Image();
       img.crossOrigin = "anonymous";
 
@@ -97,19 +89,14 @@ export default function usePollinationsImage() {
       console.error("Error generating image:", err);
 
       if (err.code === "functions/resource-exhausted") {
-        setError(
-          "You have used all your generation attempts for this challenge"
-        );
+        setError("You have used all your generation attempts for this challenge");
       } else if (err.code === "functions/unauthenticated") {
         setError("Please sign in to generate images");
       } else {
         setError(err.message || "Failed to generate image");
       }
 
-      // If the attempt tracking failed, we should refresh the attempts count
-      if (challengeId) {
-        fetchAttemptsUsed(challengeId);
-      }
+      await fetchAttemptsUsed(); // Ensure sync after error
     } finally {
       setLoading(false);
     }
