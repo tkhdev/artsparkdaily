@@ -23,6 +23,7 @@ export const useDailyChallenge = () => {
         setLoading(false);
       },
       (err) => {
+        console.log(err);
         setError(err.message);
         setLoading(false);
       }

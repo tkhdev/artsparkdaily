@@ -7,6 +7,7 @@ import Layout from "./components/Layout/Layout";
 import Home from "./pages/Home/Home";
 import Gallery from "./pages/Gallery/Gallery";
 import UserProfile from "./pages/UserProfile/UserProfile";
+import Dev from "./pages/Dev/Dev";
 
 function App() {
   useEffect(() => {
@@ -21,6 +22,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/gallery" element={<Gallery />} />
+            <Route path="/dev" element={<Dev />} />
             <Route path="/profile/:uid?" element={<UserProfile />} />
           </Routes>
         </Layout>

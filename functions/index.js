@@ -1,11 +1,18 @@
 // Firebase Functions - functions/index.js
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { setGlobalOptions } = require("firebase-functions/v2");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 
+// Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+
+// Set global options for all functions
+setGlobalOptions({
+  region: "us-central1"
+});
 
 // Hybrid challenge system - curated templates + dynamic generation
 const curatedChallenges = [
@@ -1737,14 +1744,18 @@ const challengeElements = {
 function generateHybridChallenge(date) {
   const dateStr = date.toISOString().split("T")[0];
   const monthDay = dateStr.substring(5);
-  const special = curatedChallenges.find(c => c.special && c.occasions.includes(monthDay));
+  const special = curatedChallenges.find(
+    (c) => c.special && c.occasions.includes(monthDay)
+  );
   if (special) return special;
 
-  const seed = dateStr.split("-").reduce((acc, part) => acc + parseInt(part), 0);
+  const seed = dateStr
+    .split("-")
+    .reduce((acc, part) => acc + parseInt(part), 0);
   const useCurated = seed % 10 < 3;
 
   if (useCurated) {
-    const regular = curatedChallenges.filter(c => !c.special);
+    const regular = curatedChallenges.filter((c) => !c.special);
     return regular[seed % regular.length];
   }
 
@@ -1756,76 +1767,324 @@ function generateHybridChallenge(date) {
   const element = getRandom(challengeElements.elements, 6);
 
   return {
-    title: `${theme.charAt(0).toUpperCase() + theme.slice(1)} ${subject.charAt(0).toUpperCase() + subject.slice(1)}`,
+    title: `${theme.charAt(0).toUpperCase() + theme.slice(1)} ${
+      subject.charAt(0).toUpperCase() + subject.slice(1)
+    }`,
     task: `Create a ${style} ${theme} ${subject} that is ${action} with ${element}`,
     generated: true
   };
+}
+
+// Helper function to check if user is authenticated
+function requireAuth(context, functionName) {
+  if (!context.auth) {
+    logger.warn(`Unauthorized attempt to call ${functionName}`);
+    throw new HttpsError(
+      "unauthenticated",
+      "Authentication required to access this function."
+    );
+  }
+  return context.auth;
+}
+
+// Helper function to check admin privileges (optional)
+async function checkAdminPrivileges(uid) {
+  try {
+    const userDoc = await db.collection("users").doc(uid).get();
+    const userData = userDoc.data();
+    return userData?.isAdmin === true;
+  } catch (error) {
+    logger.warn(`Error checking admin status for user ${uid}:`, error);
+    return false;
+  }
 }
 
 // Scheduled function (midnight UTC)
 exports.createDailyChallenge = onSchedule(
   {
     schedule: "0 0 * * *",
-    timeZone: "UTC",
+    timeZone: "UTC"
   },
   async (context) => {
-    const today = new Date();
-    const dateStr = today.toISOString().split("T")[0];
+    try {
+      logger.info("🕛 Scheduled daily challenge creation started");
 
-    const docRef = db.collection("dailyChallenges").doc(dateStr);
-    const existing = await docRef.get();
-    if (existing.exists) {
-      logger.info(`Challenge already exists for ${dateStr}`);
-      return;
+      const today = new Date();
+      const dateStr = today.toISOString().split("T")[0];
+      logger.info(`📅 Processing date: ${dateStr}`);
+
+      const docRef = db.collection("dailyChallenges").doc(dateStr);
+      const existing = await docRef.get();
+
+      if (existing.exists) {
+        logger.info(`⚠️ Challenge already exists for ${dateStr}`);
+        return;
+      }
+
+      const challenge = generateHybridChallenge(today);
+      const data = {
+        id: dateStr,
+        title: challenge.title,
+        task: challenge.task,
+        date: admin.firestore.Timestamp.fromDate(today),
+        createdAt: admin.firestore.Timestamp.now(),
+        type: challenge.special
+          ? "special"
+          : challenge.generated
+          ? "dynamic"
+          : "curated"
+      };
+
+      await docRef.set(data);
+      logger.info(`✅ Created ${data.type} daily challenge: ${data.title}`);
+    } catch (error) {
+      logger.error("❌ Error in scheduled challenge creation:", error);
+      throw error;
     }
-
-    const challenge = generateHybridChallenge(today);
-    const data = {
-      id: dateStr,
-      title: challenge.title,
-      task: challenge.task,
-      date: admin.firestore.Timestamp.fromDate(today),
-      createdAt: admin.firestore.Timestamp.now(),
-      type: challenge.special ? "special" : challenge.generated ? "dynamic" : "curated"
-    };
-
-    await docRef.set(data);
-    logger.info(`Created ${data.type} daily challenge: ${data.title}`);
   }
 );
 
-// Callable: manually add challenge
-exports.addChallenge = onCall(async (data, context) => {
-  try {
-    const { title, task, date } = data;
-    const challengeDate = date ? new Date(date) : new Date();
-    const dateStr = challengeDate.toISOString().split("T")[0];
+// Manual challenge creation (authenticated users only)
+exports.createDailyChallengeManual = onCall(
+  {
+    enforceAppCheck: false // Set to true if using App Check
+  },
+  async (request) => {
+    logger.info("🟢 Manual challenge creation triggered");
 
-    const challengeData = {
-      id: dateStr,
-      title,
-      task,
-      date: admin.firestore.Timestamp.fromDate(challengeDate),
-      createdAt: admin.firestore.Timestamp.now(),
-      type: "manual"
-    };
+    try {
+      // Require authentication
+      const auth = requireAuth(request, "createDailyChallengeManual");
+      logger.info(`✅ Authenticated user: ${auth.uid}`);
 
-    await db.collection("dailyChallenges").doc(dateStr).set(challengeData);
-    return { success: true, challenge: challengeData };
-  } catch (error) {
-    logger.error("Error creating challenge", error);
-    throw new HttpsError("internal", "Failed to create challenge");
+      const today = new Date();
+      const dateStr = today.toISOString().split("T")[0];
+      logger.info(`📅 Today's date (UTC): ${dateStr}`);
+
+      const docRef = db.collection("dailyChallenges").doc(dateStr);
+      const existing = await docRef.get();
+
+      if (existing.exists) {
+        logger.warn(`⚠️ Challenge already exists for ${dateStr}`);
+        return {
+          status: "exists",
+          message: `Challenge already exists for ${dateStr}`,
+          challenge: existing.data()
+        };
+      }
+
+      logger.info("🚀 Generating new challenge...");
+      const challenge = generateHybridChallenge(today);
+      logger.debug("Generated challenge object:", challenge);
+
+      const challengeData = {
+        id: dateStr,
+        title: challenge.title,
+        task: challenge.task,
+        date: admin.firestore.Timestamp.fromDate(today),
+        createdAt: admin.firestore.Timestamp.now(),
+        type: challenge.special
+          ? "special"
+          : challenge.generated
+          ? "dynamic"
+          : "curated",
+        createdBy: auth.uid
+      };
+
+      logger.info(
+        `📝 Prepared challenge data: ${JSON.stringify(challengeData)}`
+      );
+
+      await docRef.set(challengeData);
+      logger.info(
+        `✅ Successfully created ${challengeData.type} challenge: ${challengeData.title}`
+      );
+
+      return {
+        status: "created",
+        type: challengeData.type,
+        title: challengeData.title,
+        challenge: challengeData
+      };
+    } catch (error) {
+      logger.error("❌ Failed to create daily challenge:", error);
+
+      // Re-throw HttpsError as-is, wrap other errors
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "Failed to create daily challenge.");
+    }
   }
-});
+);
 
-// Callable: get today's challenge
-exports.getTodaysChallenge = onCall(async (data, context) => {
-  try {
-    const dateStr = new Date().toISOString().split("T")[0];
-    const doc = await db.collection("dailyChallenges").doc(dateStr).get();
-    return doc.exists ? doc.data() : null;
-  } catch (error) {
-    logger.error("Error retrieving today's challenge", error);
-    throw new HttpsError("internal", "Failed to get challenge");
+// Manually add challenge (authenticated users only)
+exports.addChallenge = onCall(
+  {
+    enforceAppCheck: false
+  },
+  async (request) => {
+    logger.info("📝 Manual challenge addition triggered");
+
+    try {
+      const auth = requireAuth(request, "addChallenge");
+      const { title, task, date } = request.data;
+
+      // Validate input
+      if (!title || !task) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Title and task are required."
+        );
+      }
+
+      const challengeDate = date ? new Date(date) : new Date();
+      const dateStr = challengeDate.toISOString().split("T")[0];
+
+      logger.info(`📅 Adding challenge for date: ${dateStr}`);
+
+      const challengeData = {
+        id: dateStr,
+        title: title.trim(),
+        task: task.trim(),
+        date: admin.firestore.Timestamp.fromDate(challengeDate),
+        createdAt: admin.firestore.Timestamp.now(),
+        type: "manual",
+        createdBy: auth.uid
+      };
+
+      await db.collection("dailyChallenges").doc(dateStr).set(challengeData);
+
+      logger.info(
+        `✅ Successfully added manual challenge: ${challengeData.title}`
+      );
+      return {
+        success: true,
+        challenge: challengeData
+      };
+    } catch (error) {
+      logger.error("❌ Error creating manual challenge:", error);
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "Failed to create challenge");
+    }
   }
-});
+);
+
+// Get today's challenge (public function - no auth required)
+exports.getTodaysChallenge = onCall(
+  {
+    enforceAppCheck: false
+  },
+  async (request) => {
+    try {
+      const dateStr = new Date().toISOString().split("T")[0];
+      logger.info(`🔍 Retrieving challenge for: ${dateStr}`);
+
+      const doc = await db.collection("dailyChallenges").doc(dateStr).get();
+
+      if (!doc.exists) {
+        logger.info(`📭 No challenge found for ${dateStr}`);
+        return {
+          exists: false,
+          message: "No challenge found for today"
+        };
+      }
+
+      const challengeData = doc.data();
+      logger.info(`✅ Retrieved challenge: ${challengeData.title}`);
+
+      return {
+        exists: true,
+        challenge: challengeData
+      };
+    } catch (error) {
+      logger.error("❌ Error retrieving today's challenge:", error);
+      throw new HttpsError("internal", "Failed to get challenge");
+    }
+  }
+);
+
+// Get challenge by date (public function - no auth required)
+exports.getChallengeByDate = onCall(
+  {
+    enforceAppCheck: false
+  },
+  async (request) => {
+    try {
+      const { date } = request.data;
+
+      if (!date) {
+        throw new HttpsError("invalid-argument", "Date parameter is required");
+      }
+
+      const challengeDate = new Date(date);
+      const dateStr = challengeDate.toISOString().split("T")[0];
+
+      logger.info(`🔍 Retrieving challenge for: ${dateStr}`);
+
+      const doc = await db.collection("dailyChallenges").doc(dateStr).get();
+
+      if (!doc.exists) {
+        logger.info(`📭 No challenge found for ${dateStr}`);
+        return {
+          exists: false,
+          message: `No challenge found for ${dateStr}`
+        };
+      }
+
+      const challengeData = doc.data();
+      logger.info(`✅ Retrieved challenge: ${challengeData.title}`);
+
+      return {
+        exists: true,
+        challenge: challengeData
+      };
+    } catch (error) {
+      logger.error("❌ Error retrieving challenge by date:", error);
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "Failed to get challenge");
+    }
+  }
+);
+
+// Get recent challenges (public function - no auth required)
+exports.getRecentChallenges = onCall(
+  {
+    enforceAppCheck: false
+  },
+  async (request) => {
+    try {
+      const { limit = 7 } = request.data || {};
+
+      logger.info(`🔍 Retrieving last ${limit} challenges`);
+
+      const snapshot = await db
+        .collection("dailyChallenges")
+        .orderBy("date", "desc")
+        .limit(Math.min(limit, 30)) // Cap at 30 for performance
+        .get();
+
+      const challenges = [];
+      snapshot.forEach((doc) => {
+        challenges.push(doc.data());
+      });
+
+      logger.info(`✅ Retrieved ${challenges.length} challenges`);
+
+      return {
+        success: true,
+        challenges,
+        count: challenges.length
+      };
+    } catch (error) {
+      logger.error("❌ Error retrieving recent challenges:", error);
+      throw new HttpsError("internal", "Failed to get recent challenges");
+    }
+  }
+);
