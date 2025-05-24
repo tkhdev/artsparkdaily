@@ -13,32 +13,35 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import GlowButton from "../GlowButton/GlowButton";
 import { useDailyChallenge } from "../../hooks/useDailyChallenge";
+import usePollinationsImage from "../../hooks/usePollinationsImage"; // import the hook
 
 export default function DailyChallengeCard() {
-  const { 
-    challenge, 
-    loading, 
-    error,
-  } = useDailyChallenge();
-
+  const { challenge, loading, error } = useDailyChallenge();
   const [prompt, setPrompt] = useState("");
   const [timeRemaining, setTimeRemaining] = useState("");
   const { user } = useAuth();
 
-  // Update countdown timer
+  // Use the Pollinations hook here - we trigger generation on demand
+  const { imageUrl, loading: imageLoading, error: imageError, generateImage } = usePollinationsImage();
+
+  // Timer effect remains unchanged
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date();
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(0, 0, 0, 0);
-      
+
       const diff = tomorrow - now;
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
-      setTimeRemaining(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+
+      setTimeRemaining(
+        `${hours.toString().padStart(2, "0")}:${minutes
+          .toString()
+          .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+      );
     };
 
     updateTimer();
@@ -50,7 +53,7 @@ export default function DailyChallengeCard() {
     try {
       await createTodaysChallenge();
     } catch (err) {
-      console.error('Failed to create challenge:', err);
+      console.error("Failed to create challenge:", err);
     }
   };
 
@@ -65,10 +68,11 @@ export default function DailyChallengeCard() {
       "A dream sequence where memories become constellations",
       "Floating islands connected by streams of liquid starlight",
       "A cosmic garden where flowers are made of compressed starlight",
-      "Portals between dimensions opening in a dreamer's mind"
+      "Portals between dimensions opening in a dreamer's mind",
     ];
-    
-    const randomInspiration = inspirations[Math.floor(Math.random() * inspirations.length)];
+
+    const randomInspiration =
+      inspirations[Math.floor(Math.random() * inspirations.length)];
     setPrompt(randomInspiration);
   };
 
@@ -77,17 +81,19 @@ export default function DailyChallengeCard() {
       alert("Please enter a prompt first!");
       return;
     }
-
-    alert("Art generation feature coming soon!");
+    generateImage(prompt);
   };
 
-  // Loading state
+  // Loading, error, no challenge states remain unchanged
   if (loading) {
     return (
       <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-white/10 overflow-hidden max-w-4xl mx-auto mb-24">
         <div className="px-6 py-8 sm:p-10 flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <FontAwesomeIcon icon={faSpinner} className="text-4xl text-purple-400 animate-spin mb-4" />
+            <FontAwesomeIcon
+              icon={faSpinner}
+              className="text-4xl text-purple-400 animate-spin mb-4"
+            />
             <p className="text-gray-300 text-lg">Loading today's challenge...</p>
           </div>
         </div>
@@ -95,14 +101,18 @@ export default function DailyChallengeCard() {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="bg-gradient-to-br from-red-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-red-500/20 overflow-hidden max-w-4xl mx-auto mb-24">
         <div className="px-6 py-8 sm:p-10 flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <FontAwesomeIcon icon={faExclamationTriangle} className="text-4xl text-red-400 mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">Error Loading Challenge</h3>
+            <FontAwesomeIcon
+              icon={faExclamationTriangle}
+              className="text-4xl text-red-400 mb-4"
+            />
+            <h3 className="text-xl font-semibold text-white mb-2">
+              Error Loading Challenge
+            </h3>
             <p className="text-gray-300 mb-4">{error}</p>
             <button
               onClick={() => window.location.reload()}
@@ -117,21 +127,24 @@ export default function DailyChallengeCard() {
     );
   }
 
-  // No challenge available state
   if (!challenge) {
     return (
       <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-white/10 overflow-hidden max-w-4xl mx-auto mb-24">
         <div className="px-6 py-8 sm:p-10 flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <FontAwesomeIcon icon={faCalendarDay} className="text-4xl text-gray-400 mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">No Challenge Available</h3>
+            <FontAwesomeIcon
+              icon={faCalendarDay}
+              className="text-4xl text-gray-400 mb-4"
+            />
+            <h3 className="text-xl font-semibold text-white mb-2">
+              No Challenge Available
+            </h3>
             <p className="text-gray-300 mb-6">
-              {user 
+              {user
                 ? "Today's challenge hasn't been created yet. Would you like to create one?"
-                : "Please sign in to create today's challenge."
-              }
+                : "Please sign in to create today's challenge."}
             </p>
-            
+
             {user && (
               <GlowButton
                 onClick={handleCreateChallenge}
@@ -157,31 +170,29 @@ export default function DailyChallengeCard() {
     );
   }
 
-  // Format the challenge date
   const formatDate = (timestamp) => {
     if (!timestamp) return "Today";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
-  // Get challenge type color
   const getTypeColor = (type) => {
     switch (type) {
-      case 'special':
-        return 'bg-gold-500/20 text-gold-300 border-gold-500/30';
-      case 'dynamic':
-        return 'bg-green-500/20 text-green-300 border-green-500/30';
-      case 'curated':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'manual':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+      case "special":
+        return "bg-gold-500/20 text-gold-300 border-gold-500/30";
+      case "dynamic":
+        return "bg-green-500/20 text-green-300 border-green-500/30";
+      case "curated":
+        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+      case "manual":
+        return "bg-purple-500/20 text-purple-300 border-purple-500/30";
       default:
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+        return "bg-purple-500/20 text-purple-300 border-purple-500/30";
     }
   };
 
@@ -195,20 +206,23 @@ export default function DailyChallengeCard() {
                 Today's Challenge
               </span>
               {challenge.type && (
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${getTypeColor(challenge.type)}`}>
-                  {challenge.type.charAt(0).toUpperCase() + challenge.type.slice(1)}
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${getTypeColor(
+                    challenge.type
+                  )}`}
+                >
+                  {challenge.type.charAt(0).toUpperCase() +
+                    challenge.type.slice(1)}
                 </span>
               )}
             </div>
-            
+
             <h2 className="text-3xl font-bold text-white mb-2">
               {challenge.title}
             </h2>
-            
-            <p className="text-gray-300 mb-2">
-              {challenge.task}
-            </p>
-            
+
+            <p className="text-gray-300 mb-2">{challenge.task}</p>
+
             {challenge.date && (
               <p className="text-gray-400 text-sm">
                 <FontAwesomeIcon icon={faCalendarDay} className="mr-1" />
@@ -216,7 +230,7 @@ export default function DailyChallengeCard() {
               </p>
             )}
           </div>
-          
+
           <div className="mt-6 md:mt-0 md:ml-6">
             <span className="text-gray-400 text-sm flex items-center">
               <FontAwesomeIcon icon={faClock} className="mr-1" />
@@ -246,15 +260,25 @@ export default function DailyChallengeCard() {
             />
 
             <div className="mt-4 flex flex-col sm:flex-row gap-4">
-              <GlowButton 
+              <GlowButton
                 onClick={handleGenerateArt}
                 className="glow-button bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-3 px-6 rounded-lg flex-1 flex justify-center items-center space-x-2 transition-all"
+                disabled={imageLoading}
               >
-                <FontAwesomeIcon icon={faMagic} className="mr-2" />
-                <span>Generate Art</span>
+                {imageLoading ? (
+                  <>
+                    <FontAwesomeIcon icon={faSpinner} className="animate-spin mr-2" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <FontAwesomeIcon icon={faMagic} className="mr-2" />
+                    <span>Generate Art</span>
+                  </>
+                )}
               </GlowButton>
-              
-              <button 
+
+              <button
                 onClick={handleRandomInspiration}
                 className="border border-purple-500/50 hover:bg-purple-500/20 text-white font-medium py-3 px-6 rounded-lg flex-1 flex justify-center items-center transition-all"
               >
@@ -262,6 +286,22 @@ export default function DailyChallengeCard() {
                 <span>Random Inspiration</span>
               </button>
             </div>
+
+            {imageError && (
+              <p className="text-red-400 mt-4 text-center">
+                Error generating image: {imageError}
+              </p>
+            )}
+
+            {imageUrl && (
+              <div className="mt-6 flex justify-center">
+                <img
+                  src={imageUrl}
+                  alt="Generated art"
+                  className="rounded-lg max-w-full max-h-96 border border-white/20 shadow-lg"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
