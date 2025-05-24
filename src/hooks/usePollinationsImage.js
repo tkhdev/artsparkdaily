@@ -1,39 +1,136 @@
-import { useState } from "react";
+// hooks/usePollinationsImage.js
+import { useState, useEffect, useCallback } from "react";
+import { httpsCallable } from "firebase/functions";
+import { doc, getDoc } from "firebase/firestore";
+import { functions, db } from "../firebase-config";
+import { useAuth } from "../context/AuthContext";
+
+const trackGenerationAttempt = httpsCallable(
+  functions,
+  "trackGenerationAttempt"
+);
 
 export default function usePollinationsImage() {
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [attemptsUsed, setAttemptsUsed] = useState(0);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const { user } = useAuth();
 
-  /**
-   * Generates an image from the Pollinations API based on the prompt.
-   * @param {string} prompt - The text prompt to generate image.
-   */
-  async function generateImage(prompt) {
-    if (!prompt || !prompt.trim()) {
-      setError("Prompt cannot be empty");
-      setImageUrl(null);
+  // Fetch user's generation attempts for a specific challenge
+  const fetchAttemptsUsed = useCallback(async (challengeId) => {
+    if (!user || !challengeId) {
+      setAttemptsUsed(0);
+      return;
+    }
+
+    setAttemptsLoading(true);
+    try {
+      const userChallengeDocRef = doc(
+        db,
+        "userChallenges",
+        `${user.uid}_${challengeId}`
+      );
+      const userChallengeDoc = await getDoc(userChallengeDocRef);
+
+      if (userChallengeDoc.exists()) {
+        const attempts = userChallengeDoc.data().attemptsUsed || 0;
+        setAttemptsUsed(attempts);
+      } else {
+        setAttemptsUsed(0);
+      }
+    } catch (err) {
+      console.error("Error fetching generation attempts:", err);
+      setAttemptsUsed(0);
+    } finally {
+      setAttemptsLoading(false);
+    }
+  }, []);
+
+  const generateImage = async (prompt, challengeId) => {
+    if (!prompt || !challengeId) {
+      setError("Prompt and challenge ID are required");
+      return;
+    }
+
+    if (!user) {
+      setError("Please sign in to generate images");
+      return;
+    }
+
+    // Check if user has attempts remaining
+    if (attemptsUsed >= 5) {
+      setError("You have used all your generation attempts for this challenge");
       return;
     }
 
     setLoading(true);
     setError(null);
-    setImageUrl(null);
 
     try {
-      const encodedPrompt = encodeURIComponent(prompt.trim());
-      const url = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
+      // First, track the generation attempt (this will increment the counter)
+      await trackGenerationAttempt({ challengeId });
 
-      // Pollinations returns an image directly as URL, so we can just set the URL
-      // Optionally, you could check if the URL responds with a valid image,
-      // but here we assume it works as expected.
-      setImageUrl(url);
+      // Update local attempts counter
+      setAttemptsUsed((prev) => prev + 1);
+
+      // Clean and encode the prompt
+      const cleanPrompt = prompt.trim().replace(/[^\w\s,-]/g, "");
+      const encodedPrompt = encodeURIComponent(cleanPrompt);
+
+      // Generate image using Pollinations API
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${Date.now()}`;
+
+      // Preload the image to ensure it's ready
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = pollinationsUrl;
+      });
+
+      setImageUrl(pollinationsUrl);
     } catch (err) {
-      setError("Failed to generate image");
+      console.error("Error generating image:", err);
+
+      if (err.code === "functions/resource-exhausted") {
+        setError(
+          "You have used all your generation attempts for this challenge"
+        );
+      } else if (err.code === "functions/unauthenticated") {
+        setError("Please sign in to generate images");
+      } else {
+        setError(err.message || "Failed to generate image");
+      }
+
+      // If the attempt tracking failed, we should refresh the attempts count
+      if (challengeId) {
+        fetchAttemptsUsed(challengeId);
+      }
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  return { imageUrl, loading, error, generateImage };
+  const resetImage = () => {
+    setImageUrl(null);
+    setError(null);
+  };
+
+  const canGenerate = user && attemptsUsed < 5;
+
+  return {
+    imageUrl,
+    loading,
+    error,
+    attemptsUsed,
+    attemptsLoading,
+    canGenerate,
+    generateImage,
+    resetImage,
+    fetchAttemptsUsed
+  };
 }

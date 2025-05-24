@@ -9,11 +9,15 @@ import {
   faCalendarDay,
   faClock,
   faRefresh,
+  faUpload,
+  faCheckCircle,
+  faExclamationCircle
 } from "@fortawesome/free-solid-svg-icons";
 import { useAuth } from "../../context/AuthContext";
 import GlowButton from "../GlowButton/GlowButton";
 import { useDailyChallenge } from "../../hooks/useDailyChallenge";
-import usePollinationsImage from "../../hooks/usePollinationsImage"; // import the hook
+import usePollinationsImage from "../../hooks/usePollinationsImage";
+import { useSubmission } from "../../hooks/useSubmission";
 
 export default function DailyChallengeCard() {
   const { challenge, loading, error } = useDailyChallenge();
@@ -21,18 +25,54 @@ export default function DailyChallengeCard() {
   const [timeRemaining, setTimeRemaining] = useState("");
   const { user } = useAuth();
 
-  // Use the Pollinations hook here - we trigger generation on demand
-  const { imageUrl, loading: imageLoading, error: imageError, generateImage } = usePollinationsImage();
+  // Use the Pollinations hook (now handles attempts tracking)
+  const {
+    imageUrl,
+    loading: imageLoading,
+    error: imageError,
+    attemptsUsed,
+    attemptsLoading,
+    canGenerate,
+    generateImage,
+    fetchAttemptsUsed
+  } = usePollinationsImage();
+
+  // Submission hook (now focused only on submissions)
+  const {
+    submitArt,
+    loading: submissionLoading,
+    error: submissionError,
+    userSubmission,
+    canSubmit
+  } = useSubmission(challenge?.id);
+
+  // Fetch attempts when challenge changes
+  useEffect(() => {
+    if (challenge?.id) {
+      fetchAttemptsUsed(challenge.id);
+    }
+  }, [challenge?.id, fetchAttemptsUsed]);
 
   // Timer effect remains unchanged
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
 
-      const diff = tomorrow - now;
+      // Create tomorrow's date at 00:00:00 UTC
+      const tomorrowUTC = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + 1, // Tomorrow
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const diff = tomorrowUTC - now;
+
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -68,7 +108,7 @@ export default function DailyChallengeCard() {
       "A dream sequence where memories become constellations",
       "Floating islands connected by streams of liquid starlight",
       "A cosmic garden where flowers are made of compressed starlight",
-      "Portals between dimensions opening in a dreamer's mind",
+      "Portals between dimensions opening in a dreamer's mind"
     ];
 
     const randomInspiration =
@@ -76,12 +116,50 @@ export default function DailyChallengeCard() {
     setPrompt(randomInspiration);
   };
 
-  const handleGenerateArt = () => {
+  const handleGenerateArt = async () => {
     if (!prompt.trim()) {
       alert("Please enter a prompt first!");
       return;
     }
-    generateImage(prompt);
+
+    if (!canGenerate) {
+      alert("You've used all 5 generation attempts for today's challenge!");
+      return;
+    }
+
+    try {
+      await generateImage(prompt, challenge.id);
+    } catch (error) {
+      console.error("Failed to generate image:", error);
+    }
+  };
+
+  const handleSubmitArt = async () => {
+    if (!imageUrl) {
+      alert("Please generate an image first!");
+      return;
+    }
+
+    if (!canSubmit) {
+      alert("You have already submitted to today's challenge!");
+      return;
+    }
+
+    try {
+      await submitArt({
+        challengeId: challenge.id,
+        prompt: prompt.trim(),
+        imageUrl: imageUrl,
+        userId: user.uid,
+        userDisplayName: user.displayName || "Anonymous",
+        userPhotoURL: user.photoURL || null
+      });
+
+      // Clear the current image after submission
+      setPrompt("");
+    } catch (error) {
+      console.error("Failed to submit art:", error);
+    }
   };
 
   // Loading, error, no challenge states remain unchanged
@@ -94,7 +172,9 @@ export default function DailyChallengeCard() {
               icon={faSpinner}
               className="text-4xl text-purple-400 animate-spin mb-4"
             />
-            <p className="text-gray-300 text-lg">Loading today's challenge...</p>
+            <p className="text-gray-300 text-lg">
+              Loading today's challenge...
+            </p>
           </div>
         </div>
       </div>
@@ -153,7 +233,10 @@ export default function DailyChallengeCard() {
               >
                 {creating ? (
                   <>
-                    <FontAwesomeIcon icon={faSpinner} className="animate-spin mr-2" />
+                    <FontAwesomeIcon
+                      icon={faSpinner}
+                      className="animate-spin mr-2"
+                    />
                     <span>Creating...</span>
                   </>
                 ) : (
@@ -177,7 +260,7 @@ export default function DailyChallengeCard() {
       weekday: "long",
       year: "numeric",
       month: "long",
-      day: "numeric",
+      day: "numeric"
     });
   };
 
@@ -215,6 +298,12 @@ export default function DailyChallengeCard() {
                     challenge.type.slice(1)}
                 </span>
               )}
+              {userSubmission && (
+                <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-300 border border-green-500/30">
+                  <FontAwesomeIcon icon={faCheckCircle} className="mr-1" />
+                  Submitted
+                </span>
+              )}
             </div>
 
             <h2 className="text-3xl font-bold text-white mb-2">
@@ -242,67 +331,184 @@ export default function DailyChallengeCard() {
           </div>
         </div>
 
-        <div className="space-y-8">
-          <div className="relative bg-black/30 backdrop-blur rounded-xl p-6 border border-white/10">
-            <label
-              htmlFor="prompt"
-              className="block text-sm font-medium text-gray-400 mb-2"
-            >
-              Your Prompt
-            </label>
-            <textarea
-              id="prompt"
-              rows="3"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-              placeholder={`Describe your interpretation of "${challenge.title}"...`}
-            />
-
-            <div className="mt-4 flex flex-col sm:flex-row gap-4">
-              <GlowButton
-                onClick={handleGenerateArt}
-                className="glow-button bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-3 px-6 rounded-lg flex-1 flex justify-center items-center space-x-2 transition-all"
-                disabled={imageLoading}
+        {/* Generation Attempts Counter */}
+        {user && !attemptsLoading && !userSubmission && (
+          <div className="mb-6 bg-black/20 rounded-lg p-4 border border-white/10">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300 text-sm">
+                Generation Attempts Used:
+              </span>
+              <span
+                className={`font-mono font-bold ${
+                  attemptsUsed >= 5 ? "text-red-400" : "text-purple-300"
+                }`}
               >
-                {imageLoading ? (
-                  <>
-                    <FontAwesomeIcon icon={faSpinner} className="animate-spin mr-2" />
-                    <span>Generating...</span>
-                  </>
-                ) : (
-                  <>
-                    <FontAwesomeIcon icon={faMagic} className="mr-2" />
-                    <span>Generate Art</span>
-                  </>
-                )}
-              </GlowButton>
-
-              <button
-                onClick={handleRandomInspiration}
-                className="border border-purple-500/50 hover:bg-purple-500/20 text-white font-medium py-3 px-6 rounded-lg flex-1 flex justify-center items-center transition-all"
-              >
-                <FontAwesomeIcon icon={faDice} className="mr-2" />
-                <span>Random Inspiration</span>
-              </button>
+                {attemptsUsed}/5
+              </span>
             </div>
-
-            {imageError && (
-              <p className="text-red-400 mt-4 text-center">
-                Error generating image: {imageError}
-              </p>
-            )}
-
-            {imageUrl && (
-              <div className="mt-6 flex justify-center">
-                <img
-                  src={imageUrl}
-                  alt="Generated art"
-                  className="rounded-lg max-w-full max-h-96 border border-white/20 shadow-lg"
-                />
-              </div>
-            )}
+            <div className="mt-2 bg-gray-700 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all ${
+                  attemptsUsed >= 5 ? "bg-red-500" : "bg-purple-500"
+                }`}
+                style={{ width: `${(attemptsUsed / 5) * 100}%` }}
+              />
+            </div>
           </div>
+        )}
+
+        <div className="space-y-8">
+          {/* Show existing submission if user has already submitted */}
+          {userSubmission && (
+            <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-6">
+              <div className="flex items-center mb-4">
+                <FontAwesomeIcon
+                  icon={faCheckCircle}
+                  className="text-green-400 mr-2"
+                />
+                <h3 className="text-lg font-semibold text-white">
+                  Your Submission
+                </h3>
+              </div>
+              <p className="text-gray-300 mb-4">"{userSubmission.prompt}"</p>
+              <img
+                src={userSubmission.imageUrl}
+                alt="Your submission"
+                className="rounded-lg max-w-full max-h-64 border border-white/20 shadow-lg"
+              />
+              <p className="text-gray-400 text-sm mt-2">
+                Submitted at{" "}
+                {userSubmission.createdAt?.toDate().toLocaleString()}
+              </p>
+            </div>
+          )}
+
+          {/* Generation Interface - only show if user hasn't submitted */}
+          {user && !userSubmission && (
+            <div className="relative bg-black/30 backdrop-blur rounded-xl p-6 border border-white/10">
+              <label
+                htmlFor="prompt"
+                className="block text-sm font-medium text-gray-400 mb-2"
+              >
+                Your Prompt
+              </label>
+              <textarea
+                id="prompt"
+                rows="3"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                placeholder={`Describe your interpretation of "${challenge.title}"...`}
+              />
+
+              <div className="mt-4 flex flex-col sm:flex-row gap-4">
+                <GlowButton
+                  onClick={handleGenerateArt}
+                  className="glow-button bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-3 px-6 rounded-lg flex-1 flex justify-center items-center space-x-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={imageLoading || !canGenerate}
+                >
+                  {imageLoading ? (
+                    <>
+                      <FontAwesomeIcon
+                        icon={faSpinner}
+                        className="animate-spin mr-2"
+                      />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FontAwesomeIcon icon={faMagic} className="mr-2" />
+                      <span>
+                        {canGenerate ? "Generate Art" : "Attempts Used Up"}
+                      </span>
+                    </>
+                  )}
+                </GlowButton>
+
+                <button
+                  onClick={handleRandomInspiration}
+                  className="border border-purple-500/50 hover:bg-purple-500/20 text-white font-medium py-3 px-6 rounded-lg flex-1 flex justify-center items-center transition-all"
+                  disabled={!canGenerate}
+                >
+                  <FontAwesomeIcon icon={faDice} className="mr-2" />
+                  <span>Random Inspiration</span>
+                </button>
+              </div>
+
+              {!canGenerate && user && (
+                <div className="mt-4 bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <FontAwesomeIcon
+                      icon={faExclamationCircle}
+                      className="text-red-400 mr-2"
+                    />
+                    <p className="text-red-300 text-sm">
+                      You've used all 5 generation attempts for today's
+                      challenge.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {(imageError || submissionError) && (
+                <p className="text-red-400 mt-4 text-center">
+                  Error: {imageError || submissionError}
+                </p>
+              )}
+
+              {imageUrl && (
+                <div className="mt-6">
+                  <div className="flex justify-center mb-4">
+                    <img
+                      src={imageUrl}
+                      alt="Generated art"
+                      className="rounded-lg max-w-full max-h-96 border border-white/20 shadow-lg"
+                    />
+                  </div>
+
+                  <div className="flex justify-center">
+                    <GlowButton
+                      onClick={handleSubmitArt}
+                      className="glow-button bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-medium py-3 px-8 rounded-lg flex justify-center items-center space-x-2 transition-all"
+                      disabled={submissionLoading || !canSubmit}
+                    >
+                      {submissionLoading ? (
+                        <>
+                          <FontAwesomeIcon
+                            icon={faSpinner}
+                            className="animate-spin mr-2"
+                          />
+                          <span>Submitting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FontAwesomeIcon icon={faUpload} className="mr-2" />
+                          <span>Submit to Gallery</span>
+                        </>
+                      )}
+                    </GlowButton>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Show sign-in prompt if user is not authenticated */}
+          {!user && (
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6 text-center">
+              <FontAwesomeIcon
+                icon={faExclamationCircle}
+                className="text-blue-400 text-2xl mb-4"
+              />
+              <h3 className="text-lg font-semibold text-white mb-2">
+                Sign In Required
+              </h3>
+              <p className="text-gray-300">
+                Please sign in to generate art and participate in today's
+                challenge.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

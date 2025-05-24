@@ -2088,3 +2088,337 @@ exports.getRecentChallenges = onCall(
     }
   }
 );
+
+
+exports.trackGenerationAttempt = onCall(async (request) => {
+  const context = request.auth;
+  const data = request.data;
+
+  if (!context) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const { challengeId } = data;
+  const userId = context.uid;
+
+  try {
+    const userChallengeRef = db.doc(`userChallenges/${userId}_${challengeId}`);
+    const userChallengeDoc = await userChallengeRef.get();
+
+    const userDoc = await db.doc(`users/${userId}`).get();
+    const isPro = userDoc.data()?.isPro;
+    const maxAttempts = isPro ? 15 : 5;
+
+    if (userChallengeDoc.exists) {
+      const currentAttempts = userChallengeDoc.data().attemptsUsed || 0;
+      if (currentAttempts >= maxAttempts) {
+        throw new functions.https.HttpsError('resource-exhausted', 'Maximum attempts reached');
+      }
+      await userChallengeRef.update({
+        attemptsUsed: admin.firestore.FieldValue.increment(1),
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } else {
+      await userChallengeRef.set({
+        userId,
+        challengeId,
+        attemptsUsed: 1,
+        hasSubmitted: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error tracking generation attempt:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
+exports.toggleSubmissionLike = onCall(async (request) => {
+  const context = request.auth;
+  const data = request.data;
+
+  if (!context) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const { submissionId } = data;
+  const userId = context.uid;
+
+  try {
+    const submissionRef = db.doc(`submissions/${submissionId}`);
+    const submissionDoc = await submissionRef.get();
+
+    if (!submissionDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Submission not found');
+    }
+
+    const submission = submissionDoc.data();
+    const likes = submission.likes || [];
+    const hasLiked = likes.includes(userId);
+
+    if (hasLiked) {
+      await submissionRef.update({
+        likes: admin.firestore.FieldValue.arrayRemove(userId),
+        likesCount: admin.firestore.FieldValue.increment(-1),
+      });
+      await db.doc(`users/${submission.userId}`).update({
+        totalLikes: admin.firestore.FieldValue.increment(-1),
+      });
+    } else {
+      await submissionRef.update({
+        likes: admin.firestore.FieldValue.arrayUnion(userId),
+        likesCount: admin.firestore.FieldValue.increment(1),
+      });
+      await db.doc(`users/${submission.userId}`).update({
+        totalLikes: admin.firestore.FieldValue.increment(1),
+      });
+
+      if (userId !== submission.userId) {
+        const likerDoc = await db.doc(`users/${userId}`).get();
+        const likerName = likerDoc.data()?.displayName || 'Someone';
+
+        await db.collection('notifications').add({
+          userId: submission.userId,
+          type: 'like',
+          title: 'New Like!',
+          message: `${likerName} liked your submission`,
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          relatedSubmissionId: submissionId,
+          relatedUserId: userId,
+        });
+      }
+
+      if ((submission.likesCount || 0) + 1 >= 100) {
+        await checkAndAwardAchievement(submission.userId, 'crowd_favorite', { submissionId });
+      }
+    }
+
+    return { liked: !hasLiked };
+  } catch (error) {
+    console.error('Error toggling like:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
+exports.addSubmissionComment = onCall(async (request) => {
+  const context = request.auth;
+  const data = request.data;
+
+  if (!context) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const { submissionId, text } = data;
+  const userId = context.uid;
+
+  if (!text?.trim()) {
+    throw new functions.https.HttpsError('invalid-argument', 'Comment text is required');
+  }
+
+  if (text.length > 500) {
+    throw new functions.https.HttpsError('invalid-argument', 'Comment too long');
+  }
+
+  try {
+    const userDoc = await db.doc(`users/${userId}`).get();
+    const userData = userDoc.data();
+
+    const comment = {
+      id: admin.firestore.FieldValue.serverTimestamp().toString(),
+      userId,
+      userDisplayName: userData.displayName || 'Anonymous',
+      userPhotoURL: userData.photoURL || null,
+      text: text.trim(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const submissionRef = db.doc(`submissions/${submissionId}`);
+    const submissionDoc = await submissionRef.get();
+
+    if (!submissionDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Submission not found');
+    }
+
+    const submission = submissionDoc.data();
+
+    await submissionRef.update({
+      comments: admin.firestore.FieldValue.arrayUnion(comment),
+      commentsCount: admin.firestore.FieldValue.increment(1),
+    });
+
+    await db.doc(`users/${userId}`).update({
+      totalComments: admin.firestore.FieldValue.increment(1),
+    });
+
+    if (userId !== submission.userId) {
+      await db.collection('notifications').add({
+        userId: submission.userId,
+        type: 'comment',
+        title: 'New Comment!',
+        message: `${userData.displayName || 'Someone'} commented on your submission`,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        relatedSubmissionId: submissionId,
+        relatedUserId: userId,
+      });
+    }
+
+    const userTotalComments = (userData.totalComments || 0) + 1;
+    if (userTotalComments >= 50) {
+      await checkAndAwardAchievement(userId, 'critic', { count: userTotalComments });
+    }
+
+    return { success: true, comment };
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
+exports.determineDailyWinner = onSchedule('0 1 * * *', { timeZone: 'UTC' }, async () => {
+  try {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dateString = yesterday.toISOString().split('T')[0];
+
+    const challengesQuery = db.collection('challenges')
+      .where('date', '>=', admin.firestore.Timestamp.fromDate(new Date(yesterday.setHours(0, 0, 0, 0))))
+      .where('date', '<', admin.firestore.Timestamp.fromDate(new Date(yesterday.setHours(23, 59, 59, 999))))
+      .limit(1);
+
+    const challengeSnapshot = await challengesQuery.get();
+    if (challengeSnapshot.empty) return;
+
+    const challenge = challengeSnapshot.docs[0];
+    const challengeId = challenge.id;
+
+    const submissionsQuery = db.collection('submissions')
+      .where('challengeId', '==', challengeId)
+      .orderBy('likesCount', 'desc')
+      .orderBy('createdAt', 'asc');
+
+    const submissionsSnapshot = await submissionsQuery.get();
+    if (submissionsSnapshot.empty) return;
+
+    const winnerDoc = submissionsSnapshot.docs[0];
+    const winner = winnerDoc.data();
+
+    await db.doc(`dailyWinners/${dateString}`).set({
+      date: dateString,
+      challengeId,
+      submissionId: winnerDoc.id,
+      userId: winner.userId,
+      userDisplayName: winner.userDisplayName,
+      likesCount: winner.likesCount,
+      submissionCreatedAt: winner.createdAt,
+      determinedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await winnerDoc.ref.update({
+      winnerId: winner.userId,
+      wonAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await db.collection('notifications').add({
+      userId: winner.userId,
+      type: 'winner',
+      title: 'Congratulations! 🎉',
+      message: `You won yesterday's challenge with ${winner.likesCount} likes!`,
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      relatedSubmissionId: winnerDoc.id,
+      relatedChallengeId: challengeId
+    });
+
+    console.log(`Daily winner determined: ${winner.userDisplayName} with ${winner.likesCount} likes`);
+  } catch (error) {
+    console.error('Error determining daily winner:', error);
+  }
+});
+
+// 5. Helper function to check and award achievements
+async function checkAndAwardAchievement(userId, achievementId, metadata = {}) {
+  try {
+    const achievementRef = db.doc(`users/${userId}/achievements/${achievementId}`);
+    const achievementDoc = await achievementRef.get();
+    
+    if (achievementDoc.exists()) {
+      return; // Achievement already awarded
+    }
+    
+    const achievementData = getAchievementData(achievementId);
+    
+    await achievementRef.set({
+      ...achievementData,
+      unlockedAt: admin.firestore.FieldValue.serverTimestamp(),
+      metadata
+    });
+    
+    // Update user's achievement count
+    await db.doc(`users/${userId}`).update({
+      achievementsCount: admin.firestore.FieldValue.increment(1)
+    });
+    
+    // Create notification
+    await db.collection('notifications').add({
+      userId,
+      type: 'achievement',
+      title: 'Achievement Unlocked! 🏆',
+      message: `You earned "${achievementData.name}`,
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      relatedAchievementId: achievementId
+    });
+    
+    console.log(`Achievement awarded: ${achievementId} to user ${userId}`);
+  } catch (error) {
+    console.error('Error awarding achievement:', error);
+  }
+}
+
+// Achievement definitions
+function getAchievementData(achievementId) {
+  const achievements = {
+    first_spark: {
+      id: 'first_spark',
+      name: 'First Spark',
+      description: 'Made your first submission',
+      icon: '✨',
+      type: 'submission'
+    },
+    weekly_streak: {
+      id: 'weekly_streak',
+      name: 'Weekly Streak',
+      description: '7 consecutive days of submissions',
+      icon: '🔥',
+      type: 'streak'
+    },
+    crowd_favorite: {
+      id: 'crowd_favorite',
+      name: 'Crowd Favorite',
+      description: 'Received 100 likes on a submission',
+      icon: '👑',
+      type: 'engagement'
+    },
+    critic: {
+      id: 'critic',
+      name: 'Art Critic',
+      description: 'Left 50 comments on submissions',
+      icon: '💬',
+      type: 'engagement'
+    },
+    innovator: {
+      id: 'innovator',
+      name: 'Innovator',
+      description: 'Consistently high variety in prompt usage',
+      icon: '🚀',
+      type: 'special'
+    }
+  };
+  
+  return achievements[achievementId] || null;
+}
