@@ -1,7 +1,11 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faHeart, faComment, faEye } from "@fortawesome/free-solid-svg-icons";
+import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 import { useGalleryData } from "../../hooks/useGalleryData";
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 export default function Gallery() {
   const {
@@ -16,6 +20,58 @@ export default function Gallery() {
     hasMore,
     loadMore,
   } = useGalleryData();
+
+  const { user } = useAuth(); // Use useAuth hook to get the current user
+  const functions = getFunctions();
+  const toggleSubmissionLike = httpsCallable(functions, "toggleSubmissionLike");
+
+  // State to track which submissions the current user has liked
+  const [userLikes, setUserLikes] = useState({});
+  const [likeLoading, setLikeLoading] = useState({}); // Track loading state for each submission
+
+  // Fetch user's likes when the component mounts or submissions/user change
+  useEffect(() => {
+    const fetchUserLikes = async () => {
+      if (!user) {
+        setUserLikes({});
+        return;
+      }
+
+      const updatedLikes = {};
+      submissions.forEach((submission) => {
+        updatedLikes[submission.id] = submission.likes?.includes(user.uid) || false;
+      });
+      setUserLikes(updatedLikes);
+    };
+
+    fetchUserLikes();
+  }, [submissions, user]);
+
+  // Handle like/unlike action
+  const handleToggleLike = async (submissionId) => {
+    if (!user) {
+      alert("Please sign in to like submissions.");
+      return;
+    }
+
+    setLikeLoading((prev) => ({ ...prev, [submissionId]: true }));
+
+    try {
+      const result = await toggleSubmissionLike({ submissionId });
+      const { liked } = result.data;
+
+      // Update local state
+      setUserLikes((prev) => ({
+        ...prev,
+        [submissionId]: liked,
+      }));
+    } catch (error) {
+      console.error("Error toggling like:", error);
+      alert("Failed to toggle like. Please try again.");
+    } finally {
+      setLikeLoading((prev) => ({ ...prev, [submissionId]: false }));
+    }
+  };
 
   return (
     <main className="max-w-7xl mx-auto p-8 rounded-3xl shadow-2xl bg-gradient-to-br from-purple-800 via-pink-800 to-purple-900 my-12">
@@ -101,7 +157,18 @@ export default function Gallery() {
 
             <footer className="flex justify-between text-pink-400 text-sm mt-auto">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faHeart} />
+                <button
+                  onClick={() => handleToggleLike(submission.id)}
+                  disabled={likeLoading[submission.id]}
+                  className="focus:outline-none"
+                >
+                  <FontAwesomeIcon
+                    icon={userLikes[submission.id] ? faHeart : faHeartOutline}
+                    className={`transition-colors ${
+                      userLikes[submission.id] ? "text-red-500" : "text-pink-400"
+                    }`}
+                  />
+                </button>
                 {submission.likesCount}
               </div>
               <div className="flex items-center gap-2">
