@@ -3,9 +3,10 @@ import { faHeart, faComment, faEye } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 import { useGalleryData } from "../../hooks/useGalleryData";
 import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import './Gallery.css'
 
 export default function Gallery() {
   const {
@@ -21,38 +22,64 @@ export default function Gallery() {
     loadMore,
   } = useGalleryData();
 
-  const { user } = useAuth(); // Use useAuth hook to get the current user
+  const { user } = useAuth();
   const functions = getFunctions();
   const toggleSubmissionLike = httpsCallable(functions, "toggleSubmissionLike");
 
-  // State to track which submissions the current user has liked
+  // Track user likes per submission
   const [userLikes, setUserLikes] = useState({});
-  const [likeLoading, setLikeLoading] = useState({}); // Track loading state for each submission
+  // Track like counts separately to update UI immediately
+  const [likeCounts, setLikeCounts] = useState({});
+  // Track loading state per submission
+  const [likeLoading, setLikeLoading] = useState({});
+  // Track which submission is currently animating like
+  const [animatingLikes, setAnimatingLikes] = useState({});
 
-  // Fetch user's likes when the component mounts or submissions/user change
+  // Initialize userLikes and likeCounts from submissions & user on load or updates
   useEffect(() => {
-    const fetchUserLikes = async () => {
-      if (!user) {
-        setUserLikes({});
-        return;
-      }
+    const updatedLikes = {};
+    const updatedCounts = {};
 
-      const updatedLikes = {};
-      submissions.forEach((submission) => {
-        updatedLikes[submission.id] = submission.likes?.includes(user.uid) || false;
-      });
-      setUserLikes(updatedLikes);
-    };
+    submissions.forEach((submission) => {
+      updatedCounts[submission.id] = submission.likesCount || 0;
+      updatedLikes[submission.id] = user
+        ? submission.likes?.includes(user.uid) || false
+        : false;
+    });
 
-    fetchUserLikes();
+    setUserLikes(updatedLikes);
+    setLikeCounts(updatedCounts);
   }, [submissions, user]);
 
-  // Handle like/unlike action
   const handleToggleLike = async (submissionId) => {
     if (!user) {
       alert("Please sign in to like submissions.");
       return;
     }
+
+    // Optimistically update UI
+    setUserLikes((prev) => {
+      const liked = !prev[submissionId];
+      // Animate only on like (not unlike)
+      if (liked) {
+        setAnimatingLikes((anim) => ({ ...anim, [submissionId]: true }));
+        // Remove animation class after animation duration
+        setTimeout(() => {
+          setAnimatingLikes((anim) => ({ ...anim, [submissionId]: false }));
+        }, 300);
+      }
+      return { ...prev, [submissionId]: liked };
+    });
+
+    setLikeCounts((prev) => {
+      const liked = !userLikes[submissionId];
+      return {
+        ...prev,
+        [submissionId]: liked
+          ? (prev[submissionId] || 0) + 1
+          : Math.max((prev[submissionId] || 1) - 1, 0),
+      };
+    });
 
     setLikeLoading((prev) => ({ ...prev, [submissionId]: true }));
 
@@ -60,14 +87,29 @@ export default function Gallery() {
       const result = await toggleSubmissionLike({ submissionId });
       const { liked } = result.data;
 
-      // Update local state
-      setUserLikes((prev) => ({
+      // Sync local state with server response to avoid mismatch
+      setUserLikes((prev) => ({ ...prev, [submissionId]: liked }));
+      setLikeCounts((prev) => ({
         ...prev,
-        [submissionId]: liked,
+        [submissionId]: liked
+          ? (prev[submissionId] >= 0 ? prev[submissionId] : 0) // if count already >= 0, keep it
+          : Math.max((prev[submissionId] || 1) - 1, 0),
       }));
     } catch (error) {
       console.error("Error toggling like:", error);
       alert("Failed to toggle like. Please try again.");
+
+      // Revert optimistic UI changes on error
+      setUserLikes((prev) => ({
+        ...prev,
+        [submissionId]: !prev[submissionId],
+      }));
+      setLikeCounts((prev) => ({
+        ...prev,
+        [submissionId]: userLikes[submissionId]
+          ? Math.max((prev[submissionId] || 1) - 1, 0)
+          : (prev[submissionId] || 0) + 1,
+      }));
     } finally {
       setLikeLoading((prev) => ({ ...prev, [submissionId]: false }));
     }
@@ -96,7 +138,8 @@ export default function Gallery() {
             >
               {challenges.map((challenge) => (
                 <option key={challenge.id} value={challenge.id}>
-                  {challenge.title} - {challenge.date.toISOString().split("T")[0]}
+                  {challenge.title} -{" "}
+                  {challenge.date.toISOString().split("T")[0]}
                 </option>
               ))}
               <option value="all">All Time</option>
@@ -161,15 +204,27 @@ export default function Gallery() {
                   onClick={() => handleToggleLike(submission.id)}
                   disabled={likeLoading[submission.id]}
                   className="focus:outline-none"
+                  aria-label={
+                    userLikes[submission.id]
+                      ? "Unlike submission"
+                      : "Like submission"
+                  }
                 >
                   <FontAwesomeIcon
                     icon={userLikes[submission.id] ? faHeart : faHeartOutline}
                     className={`transition-colors ${
-                      userLikes[submission.id] ? "text-red-500" : "text-pink-400"
+                      userLikes[submission.id]
+                        ? "text-red-500"
+                        : "text-pink-400"
+                    } ${
+                      animatingLikes[submission.id]
+                        ? "animate-like-pop"
+                        : ""
                     }`}
+                    style={{ fontSize: "1.25rem" }}
                   />
                 </button>
-                {submission.likesCount}
+                {likeCounts[submission.id] ?? 0}
               </div>
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faComment} />
