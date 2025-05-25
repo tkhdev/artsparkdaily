@@ -8,6 +8,7 @@ import Home from "./pages/Home/Home";
 import Gallery from "./pages/Gallery/Gallery";
 import UserProfile from "./pages/UserProfile/UserProfile";
 import Dev from "./pages/Dev/Dev";
+import SubmissionDetail from "./pages/Submission/Submission";
 
 function App() {
   useEffect(() => {
@@ -24,6 +25,10 @@ function App() {
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/dev" element={<Dev />} />
             <Route path="/profile/:uid?" element={<UserProfile />} />
+            <Route
+              path="/submission/:submissionId"
+              element={<SubmissionDetail />}
+            />
           </Routes>
         </Layout>
       </Router>

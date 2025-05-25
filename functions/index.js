@@ -2285,7 +2285,7 @@ exports.determineDailyWinner = onSchedule('0 1 * * *', { timeZone: 'UTC' }, asyn
     yesterday.setDate(yesterday.getDate() - 1);
     const dateString = yesterday.toISOString().split('T')[0];
 
-    const challengesQuery = db.collection('challenges')
+    const challengesQuery = db.collection('dailyChallenges')
       .where('date', '>=', admin.firestore.Timestamp.fromDate(new Date(yesterday.setHours(0, 0, 0, 0))))
       .where('date', '<', admin.firestore.Timestamp.fromDate(new Date(yesterday.setHours(23, 59, 59, 999))))
       .limit(1);
