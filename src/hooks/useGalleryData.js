@@ -80,8 +80,8 @@ export function useGalleryData() {
             userDisplayName: data.userDisplayName,
             userId: data.userId,
             userPhotoURL: data.userPhotoURL,
-            likesCount: data.likes?.likesCount || 0,
-            commentsCount: data.comments?.commentsCount || 0,
+            likesCount: data.likesCount || 0,
+            commentsCount: data.commentsCount || 0,
           };
         });
 

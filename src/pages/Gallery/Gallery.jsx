@@ -1,7 +1,12 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faHeart, faComment, faEye } from "@fortawesome/free-solid-svg-icons";
+import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 import { useGalleryData } from "../../hooks/useGalleryData";
 import { Link } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import './Gallery.css'
 
 export default function Gallery() {
   const {
@@ -16,6 +21,99 @@ export default function Gallery() {
     hasMore,
     loadMore,
   } = useGalleryData();
+
+  const { user } = useAuth();
+  const functions = getFunctions();
+  const toggleSubmissionLike = httpsCallable(functions, "toggleSubmissionLike");
+
+  // Track user likes per submission
+  const [userLikes, setUserLikes] = useState({});
+  // Track like counts separately to update UI immediately
+  const [likeCounts, setLikeCounts] = useState({});
+  // Track loading state per submission
+  const [likeLoading, setLikeLoading] = useState({});
+  // Track which submission is currently animating like
+  const [animatingLikes, setAnimatingLikes] = useState({});
+
+  // Initialize userLikes and likeCounts from submissions & user on load or updates
+  useEffect(() => {
+    const updatedLikes = {};
+    const updatedCounts = {};
+
+    submissions.forEach((submission) => {
+      updatedCounts[submission.id] = submission.likesCount || 0;
+      updatedLikes[submission.id] = user
+        ? submission.likes?.includes(user.uid) || false
+        : false;
+    });
+
+    setUserLikes(updatedLikes);
+    setLikeCounts(updatedCounts);
+  }, [submissions, user]);
+
+  const handleToggleLike = async (submissionId) => {
+    if (!user) {
+      alert("Please sign in to like submissions.");
+      return;
+    }
+
+    // Optimistically update UI
+    setUserLikes((prev) => {
+      const liked = !prev[submissionId];
+      // Animate only on like (not unlike)
+      if (liked) {
+        setAnimatingLikes((anim) => ({ ...anim, [submissionId]: true }));
+        // Remove animation class after animation duration
+        setTimeout(() => {
+          setAnimatingLikes((anim) => ({ ...anim, [submissionId]: false }));
+        }, 300);
+      }
+      return { ...prev, [submissionId]: liked };
+    });
+
+    setLikeCounts((prev) => {
+      const liked = !userLikes[submissionId];
+      return {
+        ...prev,
+        [submissionId]: liked
+          ? (prev[submissionId] || 0) + 1
+          : Math.max((prev[submissionId] || 1) - 1, 0),
+      };
+    });
+
+    setLikeLoading((prev) => ({ ...prev, [submissionId]: true }));
+
+    try {
+      const result = await toggleSubmissionLike({ submissionId });
+      const { liked } = result.data;
+
+      // Sync local state with server response to avoid mismatch
+      setUserLikes((prev) => ({ ...prev, [submissionId]: liked }));
+      setLikeCounts((prev) => ({
+        ...prev,
+        [submissionId]: liked
+          ? (prev[submissionId] >= 0 ? prev[submissionId] : 0) // if count already >= 0, keep it
+          : Math.max((prev[submissionId] || 1) - 1, 0),
+      }));
+    } catch (error) {
+      console.error("Error toggling like:", error);
+      alert("Failed to toggle like. Please try again.");
+
+      // Revert optimistic UI changes on error
+      setUserLikes((prev) => ({
+        ...prev,
+        [submissionId]: !prev[submissionId],
+      }));
+      setLikeCounts((prev) => ({
+        ...prev,
+        [submissionId]: userLikes[submissionId]
+          ? Math.max((prev[submissionId] || 1) - 1, 0)
+          : (prev[submissionId] || 0) + 1,
+      }));
+    } finally {
+      setLikeLoading((prev) => ({ ...prev, [submissionId]: false }));
+    }
+  };
 
   return (
     <main className="max-w-7xl mx-auto p-8 rounded-3xl shadow-2xl bg-gradient-to-br from-purple-800 via-pink-800 to-purple-900 my-12">
@@ -40,7 +138,8 @@ export default function Gallery() {
             >
               {challenges.map((challenge) => (
                 <option key={challenge.id} value={challenge.id}>
-                  {challenge.title} - {challenge.date.toISOString().split("T")[0]}
+                  {challenge.title} -{" "}
+                  {challenge.date.toISOString().split("T")[0]}
                 </option>
               ))}
               <option value="all">All Time</option>
@@ -101,8 +200,31 @@ export default function Gallery() {
 
             <footer className="flex justify-between text-pink-400 text-sm mt-auto">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faHeart} />
-                {submission.likesCount}
+                <button
+                  onClick={() => handleToggleLike(submission.id)}
+                  disabled={likeLoading[submission.id]}
+                  className="focus:outline-none"
+                  aria-label={
+                    userLikes[submission.id]
+                      ? "Unlike submission"
+                      : "Like submission"
+                  }
+                >
+                  <FontAwesomeIcon
+                    icon={userLikes[submission.id] ? faHeart : faHeartOutline}
+                    className={`transition-colors ${
+                      userLikes[submission.id]
+                        ? "text-red-500"
+                        : "text-pink-400"
+                    } ${
+                      animatingLikes[submission.id]
+                        ? "animate-like-pop"
+                        : ""
+                    }`}
+                    style={{ fontSize: "1.25rem" }}
+                  />
+                </button>
+                {likeCounts[submission.id] ?? 0}
               </div>
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faComment} />
