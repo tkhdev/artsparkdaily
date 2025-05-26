@@ -2280,65 +2280,125 @@ exports.addSubmissionComment = onCall(async (request) => {
 });
 
 exports.determineDailyWinner = onSchedule('0 1 * * *', { timeZone: 'UTC' }, async () => {
+  await determineDailyWinnerInternal();
+});
+
+exports.runDetermineDailyWinnerManual = onCall(async (request) => {
+  return await determineDailyWinnerInternal(true);
+});
+
+async function determineDailyWinnerInternal(manual = false) {
   try {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateString = yesterday.toISOString().split('T')[0];
+    console.log(`[${manual ? "Manual" : "Scheduled"}] Starting determineDailyWinner`);
 
-    const challengesQuery = db.collection('dailyChallenges')
-      .where('date', '>=', admin.firestore.Timestamp.fromDate(new Date(yesterday.setHours(0, 0, 0, 0))))
-      .where('date', '<', admin.firestore.Timestamp.fromDate(new Date(yesterday.setHours(23, 59, 59, 999))))
-      .limit(1);
+    const startOfYesterday = new Date();
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    startOfYesterday.setHours(0, 0, 0, 0);
 
-    const challengeSnapshot = await challengesQuery.get();
-    if (challengeSnapshot.empty) return;
+    const endOfYesterday = new Date();
+    endOfYesterday.setDate(endOfYesterday.getDate() - 1);
+    endOfYesterday.setHours(23, 59, 59, 999);
+
+    const dateString = startOfYesterday.toISOString().split('T')[0];
+    console.log(`Targeting date: ${dateString}`);
+
+    let challengeSnapshot;
+    try {
+      console.log("Querying dailyChallenges...");
+      const challengesQuery = db.collection('dailyChallenges')
+        .where('date', '>=', admin.firestore.Timestamp.fromDate(startOfYesterday))
+        .where('date', '<', admin.firestore.Timestamp.fromDate(endOfYesterday))
+        .limit(1);
+
+      challengeSnapshot = await challengesQuery.get();
+    } catch (err) {
+      console.error("Error querying dailyChallenges:", err);
+      throw err;
+    }
+
+    if (challengeSnapshot.empty) {
+      console.log("No daily challenge found for yesterday.");
+      return;
+    }
 
     const challenge = challengeSnapshot.docs[0];
     const challengeId = challenge.id;
+    console.log(`Found challenge ID: ${challengeId}`);
 
-    const submissionsQuery = db.collection('submissions')
-      .where('challengeId', '==', challengeId)
-      .orderBy('likesCount', 'desc')
-      .orderBy('createdAt', 'asc');
+    let submissionsSnapshot;
+    try {
+      console.log("Querying submissions for challenge...");
+      const submissionsQuery = db.collection('submissions')
+        .where('challengeId', '==', challengeId)
+        .orderBy('likesCount', 'desc')
+        .orderBy('createdAt', 'asc');
 
-    const submissionsSnapshot = await submissionsQuery.get();
-    if (submissionsSnapshot.empty) return;
+      submissionsSnapshot = await submissionsQuery.get();
+    } catch (err) {
+      console.error("Error querying submissions:", err);
+      throw err;
+    }
+
+    if (submissionsSnapshot.empty) {
+      console.log("No submissions found for this challenge.");
+      return;
+    }
 
     const winnerDoc = submissionsSnapshot.docs[0];
     const winner = winnerDoc.data();
+    console.log(`Top submission found: ${winner.userDisplayName} with ${winner.likesCount} likes`);
 
-    await db.doc(`dailyWinners/${dateString}`).set({
-      date: dateString,
-      challengeId,
-      submissionId: winnerDoc.id,
-      userId: winner.userId,
-      userDisplayName: winner.userDisplayName,
-      likesCount: winner.likesCount,
-      submissionCreatedAt: winner.createdAt,
-      determinedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    try {
+      await db.doc(`dailyWinners/${dateString}`).set({
+        date: dateString,
+        challengeId,
+        submissionId: winnerDoc.id,
+        userId: winner.userId,
+        userDisplayName: winner.userDisplayName,
+        likesCount: winner.likesCount,
+        submissionCreatedAt: winner.createdAt,
+        determinedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log("Winner document written to dailyWinners.");
+    } catch (err) {
+      console.error("Error writing to dailyWinners:", err);
+      throw err;
+    }
 
-    await winnerDoc.ref.update({
-      winnerId: winner.userId,
-      wonAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    try {
+      await winnerDoc.ref.update({
+        winnerId: winner.userId,
+        wonAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log("Winner submission updated with winnerId.");
+    } catch (err) {
+      console.error("Error updating winning submission:", err);
+    }
 
-    await db.collection('notifications').add({
-      userId: winner.userId,
-      type: 'winner',
-      title: 'Congratulations! 🎉',
-      message: `You won yesterday's challenge with ${winner.likesCount} likes!`,
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      relatedSubmissionId: winnerDoc.id,
-      relatedChallengeId: challengeId
-    });
+    try {
+      await db.collection('notifications').add({
+        userId: winner.userId,
+        type: 'winner',
+        title: 'Congratulations! 🎉',
+        message: `You won yesterday's challenge with ${winner.likesCount} likes!`,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        relatedSubmissionId: winnerDoc.id,
+        relatedChallengeId: challengeId
+      });
+      console.log("Notification sent to winner.");
+    } catch (err) {
+      console.error("Error creating winner notification:", err);
+    }
 
-    console.log(`Daily winner determined: ${winner.userDisplayName} with ${winner.likesCount} likes`);
+    console.log(`✅ Daily winner determined: ${winner.userDisplayName} (${winner.userId})`);
+
+    return { status: "success", winner: winner.userDisplayName };
   } catch (error) {
-    console.error('Error determining daily winner:', error);
+    console.error("❌ Unexpected error in determineDailyWinner:", error);
+    return { status: "error", error: error.message || error.toString() };
   }
-});
+}
 
 // 5. Helper function to check and award achievements
 async function checkAndAwardAchievement(userId, achievementId, metadata = {}) {

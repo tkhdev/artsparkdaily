@@ -82,6 +82,8 @@ export function useGalleryData() {
             userPhotoURL: data.userPhotoURL,
             likesCount: data.likesCount || 0,
             commentsCount: data.commentsCount || 0,
+            likes: data.likes || [],
+            comments: data.comments || [],
           };
         });
 
