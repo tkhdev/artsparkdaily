@@ -5,7 +5,9 @@ import {
   faEye,
   faPaperPlane,
   faChevronDown,
-  faChevronUp
+  faChevronUp,
+  faCrown,
+  faTrophy
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 import { useGalleryData } from "../../hooks/useGalleryData";
@@ -13,6 +15,7 @@ import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { collection, query, getDocs, getFirestore } from "firebase/firestore";
 import "./Gallery.css";
 
 export default function Gallery() {
@@ -31,6 +34,7 @@ export default function Gallery() {
 
   const { user } = useAuth();
   const functions = getFunctions();
+  const db = getFirestore();
   const toggleSubmissionLike = httpsCallable(functions, "toggleSubmissionLike");
   const addSubmissionComment = httpsCallable(functions, "addSubmissionComment");
 
@@ -49,7 +53,43 @@ export default function Gallery() {
   const [commentLoading, setCommentLoading] = useState({});
   const [submissionComments, setSubmissionComments] = useState({});
 
-  // Initialize userLikes and likeCounts from submissions & user on load or updates
+  // Reference to comments containers for scrolling
+  const commentsRefs = useRef({});
+
+  // Winner tracking state
+  const [winners, setWinners] = useState({});
+  const [winnersLoading, setWinnersLoading] = useState(true);
+
+  // Fetch daily winners
+  useEffect(() => {
+    const fetchWinners = async () => {
+      try {
+        setWinnersLoading(true);
+        const winnersRef = collection(db, "dailyWinners");
+        const winnersQuery = query(winnersRef);
+        const winnersSnapshot = await getDocs(winnersQuery);
+
+        const winnersData = {};
+        winnersSnapshot.forEach((doc) => {
+          const winnerData = doc.data();
+          winnersData[winnerData.submissionId] = {
+            ...winnerData,
+            date: doc.id
+          };
+        });
+
+        setWinners(winnersData);
+      } catch (error) {
+        console.error("Error fetching winners:", error);
+      } finally {
+        setWinnersLoading(false);
+      }
+    };
+
+    fetchWinners();
+  }, [db]);
+
+  // Initialize userLikes, likeCounts, and comments from submissions & user
   useEffect(() => {
     const updatedLikes = {};
     const updatedCounts = {};
@@ -68,19 +108,39 @@ export default function Gallery() {
     setSubmissionComments(updatedComments);
   }, [submissions, user]);
 
+  // Helper function to check if a submission is a winner
+  const isWinner = (submissionId) => {
+    return winners[submissionId] !== undefined;
+  };
+
+  // Helper function to get winner data
+  const getWinnerData = (submissionId) => {
+    return winners[submissionId];
+  };
+
+  // Helper function to check if a challenge is completed
+  const isChallengeCompleted = (challengeId) => {
+    const challenge = challenges.find((c) => c.id === challengeId);
+    if (!challenge) return false;
+
+    const challengeDate = new Date(challenge.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    challengeDate.setHours(0, 0, 0, 0);
+
+    return challengeDate < today;
+  };
+
   const handleToggleLike = async (submissionId) => {
     if (!user) {
       alert("Please sign in to like submissions.");
       return;
     }
 
-    // Optimistically update UI
     setUserLikes((prev) => {
       const liked = !prev[submissionId];
-      // Animate only on like (not unlike)
       if (liked) {
         setAnimatingLikes((anim) => ({ ...anim, [submissionId]: true }));
-        // Remove animation class after animation duration
         setTimeout(() => {
           setAnimatingLikes((anim) => ({ ...anim, [submissionId]: false }));
         }, 300);
@@ -104,21 +164,19 @@ export default function Gallery() {
       const result = await toggleSubmissionLike({ submissionId });
       const { liked } = result.data;
 
-      // Sync local state with server response to avoid mismatch
       setUserLikes((prev) => ({ ...prev, [submissionId]: liked }));
       setLikeCounts((prev) => ({
         ...prev,
         [submissionId]: liked
           ? prev[submissionId] >= 0
             ? prev[submissionId]
-            : 0 // if count already >= 0, keep it
+            : 0
           : Math.max((prev[submissionId] || 1) - 1, 0)
       }));
     } catch (error) {
       console.error("Error toggling like:", error);
       alert("Failed to toggle like. Please try again.");
 
-      // Revert optimistic UI changes on error
       setUserLikes((prev) => ({
         ...prev,
         [submissionId]: !prev[submissionId]
@@ -135,10 +193,25 @@ export default function Gallery() {
   };
 
   const handleToggleComments = (submissionId) => {
-    setExpandedComments((prev) => ({
-      ...prev,
-      [submissionId]: !prev[submissionId]
-    }));
+    setExpandedComments((prev) => {
+      const isExpanding = !prev[submissionId];
+      if (isExpanding) {
+        // Scroll to bottom when expanding
+        setTimeout(() => {
+          const commentsContainer = commentsRefs.current[submissionId];
+          if (commentsContainer) {
+            commentsContainer.scrollTo({
+              top: commentsContainer.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }, 0); // Delay to ensure DOM is updated
+      }
+      return {
+        ...prev,
+        [submissionId]: !prev[submissionId]
+      };
+    });
   };
 
   const handleCommentChange = (submissionId, value) => {
@@ -171,7 +244,6 @@ export default function Gallery() {
       });
 
       if (result.data.success) {
-        // Add the new comment to local state
         const newComment = result.data.comment;
         setSubmissionComments((prev) => ({
           ...prev,
@@ -184,8 +256,14 @@ export default function Gallery() {
           [submissionId]: ""
         }));
 
-        // Update comment count (optimistically)
-        // Note: You might want to refetch submissions or handle this in the hook
+        // Scroll to bottom of comments
+        const commentsContainer = commentsRefs.current[submissionId];
+        if (commentsContainer) {
+          commentsContainer.scrollTo({
+            top: commentsContainer.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
       }
     } catch (error) {
       console.error("Error adding comment:", error);
@@ -206,21 +284,14 @@ export default function Gallery() {
     if (!timestamp) return "";
 
     let date;
-    
-    // Handle Firestore Timestamp object with _seconds property
     if (timestamp._seconds) {
       date = new Date(timestamp._seconds * 1000);
-    }
-    // Handle Firestore Timestamp with toDate method
-    else if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+    } else if (timestamp.toDate && typeof timestamp.toDate === "function") {
       date = timestamp.toDate();
-    }
-    // Handle regular Date or timestamp string/number
-    else {
+    } else {
       date = new Date(timestamp);
     }
 
-    // Check if date is valid
     if (isNaN(date.getTime())) {
       return "";
     }
@@ -263,6 +334,7 @@ export default function Gallery() {
                 <option key={challenge.id} value={challenge.id}>
                   {challenge.title} -{" "}
                   {challenge.date.toISOString().split("T")[0]}
+                  {isChallengeCompleted(challenge.id) ? " 👑" : ""}
                 </option>
               ))}
               <option value="all">All Time</option>
@@ -289,189 +361,253 @@ export default function Gallery() {
       {error && <p className="text-red-400 text-center mb-4">{error}</p>}
 
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {submissions.map((submission) => (
-          <article
-            key={submission.id}
-            className="bg-purple-900/80 backdrop-blur rounded-xl shadow-lg flex flex-col overflow-hidden"
-          >
-            {/* Header */}
-            <header className="flex items-center gap-3 p-4 pb-2">
-              <img
-                src={submission.userPhotoURL}
-                alt={submission.userDisplayName}
-                className="w-10 h-10 rounded-full object-cover"
-              />
-              <h3 className="text-white font-semibold text-lg truncate">
-                {submission.userDisplayName}
-              </h3>
-            </header>
+        {submissions.map((submission) => {
+          const submissionIsWinner = isWinner(submission.id);
+          const winnerData = getWinnerData(submission.id);
+          const challengeCompleted = isChallengeCompleted(
+            submission.challengeId
+          );
 
-            <Link to={`/submission/${submission.id}`}>
-              <img
-                src={submission.imageUrl}
-                alt={submission.prompt}
-                className="rounded-md w-full max-h-64 object-cover hover:opacity-90 transition"
-                loading="lazy"
-              />
-            </Link>
-
-            {/* Prompt */}
-            <p className="text-pink-300 text-sm italic px-4 pt-2 line-clamp-2">
-              {submission.prompt}
-            </p>
-
-            {/* Actions */}
-            <footer className="p-4 pt-3">
-              <div className="flex justify-between text-pink-400 text-sm mb-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleToggleLike(submission.id)}
-                    disabled={likeLoading[submission.id]}
-                    className="focus:outline-none hover:scale-110 transition-transform"
-                    aria-label={
-                      userLikes[submission.id]
-                        ? "Unlike submission"
-                        : "Like submission"
-                    }
-                  >
-                    <FontAwesomeIcon
-                      icon={userLikes[submission.id] ? faHeart : faHeartOutline}
-                      className={`transition-colors ${
-                        userLikes[submission.id]
-                          ? "text-red-500"
-                          : "text-pink-400"
-                      } ${
-                        animatingLikes[submission.id] ? "animate-like-pop" : ""
-                      }`}
-                      style={{ fontSize: "1.25rem" }}
-                    />
-                  </button>
-                  <span>{likeCounts[submission.id] ?? 0}</span>
-                </div>
-
-                <button
-                  onClick={() => handleToggleComments(submission.id)}
-                  className="flex items-center gap-2 hover:text-pink-300 transition-colors focus:outline-none"
-                >
-                  <FontAwesomeIcon icon={faComment} />
-                  <span>
-                    {(submissionComments[submission.id] || []).length}
-                  </span>
-                  <FontAwesomeIcon
-                    icon={
-                      expandedComments[submission.id]
-                        ? faChevronUp
-                        : faChevronDown
-                    }
-                    className="text-xs"
-                  />
-                </button>
-
-                <div className="flex items-center gap-2 text-pink-500">
-                  <FontAwesomeIcon icon={faEye} />
-                  <span>
-                    {new Date(submission.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-
-              {/* Comments Section */}
-              {expandedComments[submission.id] && (
-                <div className="border-t border-purple-700 pt-3 space-y-3">
-                  {/* Existing Comments */}
-                  {submissionComments[submission.id]?.length > 0 ? (
-                    <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
-                      {submissionComments[submission.id].map(
-                        (comment, index) => {
-                          return (
-                            <div key={index} className="flex gap-2 text-sm">
-                              <img
-                                src={
-                                  comment.userPhotoURL || "/default-avatar.png"
-                                }
-                                alt={comment.userDisplayName}
-                                className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-0.5"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline gap-2 flex-wrap">
-                                  <span className="font-semibold text-pink-300 text-xs">
-                                    {comment.userDisplayName}
-                                  </span>
-                                  <span className="text-pink-500 text-xs">
-                                    {formatCommentDate(comment.createdAt)}
-                                  </span>
-                                </div>
-                                <p className="text-white text-sm break-words">
-                                  {comment.text}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        }
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-pink-500 text-sm text-center py-2">
-                      No comments yet. Be the first to comment!
-                    </p>
-                  )}
-
-                  {/* Comment Input */}
-                  {user ? (
-                    <div className="flex gap-2 pt-2 border-t border-purple-700/50">
-                      <img
-                        src={user.photoURL || "/default-avatar.png"}
-                        alt={user.displayName}
-                        className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-1"
-                      />
-                      <div className="flex-1 flex gap-2">
-                        <textarea
-                          value={newComments[submission.id] || ""}
-                          onChange={(e) =>
-                            handleCommentChange(submission.id, e.target.value)
-                          }
-                          onKeyPress={(e) => handleKeyPress(e, submission.id)}
-                          placeholder="Add a comment..."
-                          className="flex-1 bg-purple-800 text-white text-sm rounded-lg px-3 py-2 border border-purple-600 focus:border-pink-400 focus:outline-none resize-none"
-                          rows="2"
-                          maxLength="500"
-                          disabled={commentLoading[submission.id]}
-                        />
-                        <button
-                          onClick={() => handleSubmitComment(submission.id)}
-                          disabled={
-                            commentLoading[submission.id] ||
-                            !newComments[submission.id]?.trim()
-                          }
-                          className="px-3 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                        >
-                          <FontAwesomeIcon
-                            icon={faPaperPlane}
-                            className={
-                              commentLoading[submission.id]
-                                ? "animate-pulse"
-                                : ""
-                            }
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-pink-500 text-sm text-center py-2">
-                      <a
-                        href="/login"
-                        className="underline hover:text-pink-400"
-                      >
-                        Sign in
-                      </a>{" "}
-                      to leave a comment
+          return (
+            <article
+              key={submission.id}
+              style={{ height: "fit-content" }}
+              className={`bg-purple-900/80 backdrop-blur rounded-xl shadow-lg flex flex-col overflow-hidden relative ${
+                submissionIsWinner
+                  ? "ring-2 ring-yellow-400 shadow-yellow-400/20"
+                  : ""
+              }`}
+            >
+              {submissionIsWinner && (
+                <div className="bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 text-black text-center py-2 px-4">
+                  <div className="flex items-center justify-center gap-2 text-sm font-bold">
+                    <FontAwesomeIcon icon={faTrophy} />
+                    <span>Daily Challenge Winner</span>
+                    <FontAwesomeIcon icon={faTrophy} />
+                  </div>
+                  {winnerData && (
+                    <p className="text-xs mt-1 opacity-90">
+                      {winnerData.likesCount} likes • Won on{" "}
+                      {new Date(winnerData.date).toLocaleDateString()}
                     </p>
                   )}
                 </div>
               )}
-            </footer>
-          </article>
-        ))}
+
+              <header className="flex items-center gap-3 p-4 pb-2">
+                <div className="relative">
+                  <img
+                    src={submission.userPhotoURL}
+                    alt={submission.userDisplayName}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                  {submissionIsWinner && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center">
+                      <FontAwesomeIcon
+                        icon={faCrown}
+                        className="text-black text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-semibold text-lg truncate flex items-center gap-2">
+                    {submission.userDisplayName}
+                    {submissionIsWinner && (
+                      <span className="text-yellow-400 text-sm">👑</span>
+                    )}
+                  </h3>
+                  {challengeCompleted && !submissionIsWinner && (
+                    <p className="text-pink-400 text-xs">Challenge Completed</p>
+                  )}
+                </div>
+              </header>
+
+              <Link to={`/submission/${submission.id}`}>
+                <div className="relative">
+                  <img
+                    src={submission.imageUrl}
+                    alt={submission.prompt}
+                    className="rounded-md w-full max-h-64 object-cover hover:opacity-90 transition"
+                    loading="lazy"
+                  />
+                  {submissionIsWinner && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent pointer-events-none" />
+                  )}
+                </div>
+              </Link>
+
+              <footer className="p-4 pt-3">
+                <div className="flex justify-between text-pink-400 text-sm mb-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleLike(submission.id)}
+                      disabled={likeLoading[submission.id]}
+                      className="focus:outline-none hover:scale-110 transition-transform"
+                      aria-label={
+                        userLikes[submission.id]
+                          ? "Unlike submission"
+                          : "Like submission"
+                      }
+                    >
+                      <FontAwesomeIcon
+                        icon={
+                          userLikes[submission.id] ? faHeart : faHeartOutline
+                        }
+                        className={`transition-colors ${
+                          userLikes[submission.id]
+                            ? "text-red-500"
+                            : submissionIsWinner
+                            ? "text-yellow-400"
+                            : "text-pink-400"
+                        } ${
+                          animatingLikes[submission.id]
+                            ? "animate-like-pop"
+                            : ""
+                        }`}
+                        style={{ fontSize: "1.25rem" }}
+                      />
+                    </button>
+                    <span
+                      className={
+                        submissionIsWinner
+                          ? "text-yellow-400 font-semibold"
+                          : ""
+                      }
+                    >
+                      {likeCounts[submission.id] ?? 0}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => handleToggleComments(submission.id)}
+                    className={`flex items-center gap-2 hover:text-pink-300 transition-colors focus:outline-none ${
+                      submissionIsWinner
+                        ? "text-yellow-400 hover:text-yellow-300"
+                        : ""
+                    }`}
+                  >
+                    <FontAwesomeIcon icon={faComment} />
+                    <span>
+                      {(submissionComments[submission.id] || []).length}
+                    </span>
+                    <FontAwesomeIcon
+                      icon={
+                        expandedComments[submission.id]
+                          ? faChevronUp
+                          : faChevronDown
+                      }
+                      className="text-xs"
+                    />
+                  </button>
+
+                  <div className="flex items-center gap-2 text-pink-500">
+                    <FontAwesomeIcon icon={faEye} />
+                    <span>
+                      {new Date(submission.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+
+                {expandedComments[submission.id] && (
+                  <div className="border-t border-purple-700 pt-3 space-y-3">
+                    {submissionComments[submission.id]?.length > 0 ? (
+                      <div
+                        ref={(el) => (commentsRefs.current[submission.id] = el)}
+                        className="max-h-48 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-pink-500 scrollbar-track-purple-900"
+                      >
+                        {submissionComments[submission.id].map(
+                          (comment, index) => {
+                            return (
+                              <div key={index} className="flex gap-2 text-sm">
+                                <img
+                                  src={
+                                    comment.userPhotoURL ||
+                                    "/default-avatar.png"
+                                  }
+                                  alt={comment.userDisplayName}
+                                  className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-0.5"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-baseline gap-2 flex-wrap">
+                                    <span className="font-semibold text-pink-300 text-xs">
+                                      {comment.userDisplayName}
+                                    </span>
+                                    <span className="text-pink-500 text-xs">
+                                      {formatCommentDate(comment.createdAt)}
+                                    </span>
+                                  </div>
+                                  <p className="text-white text-sm break-words">
+                                    {comment.text}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-pink-500 text-sm text-center py-2">
+                        No comments yet. Be the first to comment!
+                      </p>
+                    )}
+
+                    {user ? (
+                      <div className="flex gap-2 pt-2 border-t border-purple-700/50">
+                        <img
+                          src={user.photoURL || "/default-avatar.png"}
+                          alt={user.displayName}
+                          className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-1"
+                        />
+                        <div className="flex-1 flex gap-2">
+                          <textarea
+                            value={newComments[submission.id] || ""}
+                            onChange={(e) =>
+                              handleCommentChange(submission.id, e.target.value)
+                            }
+                            onKeyPress={(e) => handleKeyPress(e, submission.id)}
+                            placeholder="Add a comment..."
+                            className="flex-1 bg-purple-800 text-white text-sm rounded-lg px-3 py-2 border border-purple-600 focus:border-pink-400 focus:outline-none resize-none"
+                            rows="2"
+                            maxLength="500"
+                            disabled={commentLoading[submission.id]}
+                          />
+                          <button
+                            onClick={() => handleSubmitComment(submission.id)}
+                            disabled={
+                              commentLoading[submission.id] ||
+                              !newComments[submission.id]?.trim()
+                            }
+                            className="px-3 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                          >
+                            <FontAwesomeIcon
+                              icon={faPaperPlane}
+                              className={
+                                commentLoading[submission.id]
+                                  ? "animate-pulse"
+                                  : ""
+                              }
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-pink-500 text-sm text-center py-2">
+                        <a
+                          href="/login"
+                          className="underline hover:text-pink-400"
+                        >
+                          Sign in
+                        </a>{" "}
+                        to leave a comment
+                      </p>
+                    )}
+                  </div>
+                )}
+              </footer>
+            </article>
+          );
+        })}
       </section>
 
       {loading && <p className="text-center text-white mt-6">Loading...</p>}
