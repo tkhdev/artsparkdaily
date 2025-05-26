@@ -1,7 +1,11 @@
+// components/HeroSection/HeroSection.tsx
 import CounterCard from "../CounterCard/CounterCard";
-import './HeroSection.css'
+import { useHeroStats } from "../../hooks/useHeroStats";
+import "./HeroSection.css";
 
 export default function HeroSection() {
+  const { stats, loading } = useHeroStats();
+
   return (
     <section className="pt-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="text-center mb-16">
@@ -13,9 +17,21 @@ export default function HeroSection() {
         </p>
 
         <div className="flex justify-center space-x-8 mt-12">
-          <CounterCard count="4,872" label="Artists" colorClass="text-pink-400" />
-          <CounterCard count="14,320" label="Creations" colorClass="text-purple-400" />
-          <CounterCard count="217" label="Challenges" colorClass="text-blue-400" />
+          <CounterCard
+            count={loading ? "..." : stats.artists.toLocaleString()}
+            label="Artists"
+            colorClass="text-pink-400"
+          />
+          <CounterCard
+            count={loading ? "..." : stats.creations.toLocaleString()}
+            label="Creations"
+            colorClass="text-purple-400"
+          />
+          <CounterCard
+            count={loading ? "..." : stats.challenges.toLocaleString()}
+            label="Challenges"
+            colorClass="text-blue-400"
+          />
         </div>
       </div>
     </section>
