@@ -3,15 +3,17 @@ import DailyChallengeCard from "../../components/DailyChallengeCard/DailyChallen
 import FeaturedCreations from "../../components/FeaturedCreations/FeaturedCreations";
 import HowItWorks from "../../components/HowItWorks/HowItWorks";
 import JoinCommunity from "../../components/JoinCommunity/JoinCommunity";
+import { useAuth } from "../../context/AuthContext";
 
 function Home() {
+  const { user } = useAuth();
   return (
     <>
       <HeroSection />
       <DailyChallengeCard />
       <FeaturedCreations />
       <HowItWorks />
-      <JoinCommunity />
+      {!user && <JoinCommunity />}
     </>
   );
 }

@@ -17,6 +17,7 @@ import { useAuth } from "../../context/AuthContext";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { collection, query, getDocs, getFirestore } from "firebase/firestore";
 import "./Gallery.css";
+import { useAuthActions } from "../../hooks/useAuthActions";
 
 export default function Gallery() {
   const {
@@ -34,6 +35,7 @@ export default function Gallery() {
 
   const { user } = useAuth();
   const functions = getFunctions();
+  const { loginWithGoogle } = useAuthActions();
   const db = getFirestore();
   const toggleSubmissionLike = httpsCallable(functions, "toggleSubmissionLike");
   const addSubmissionComment = httpsCallable(functions, "addSubmissionComment");
@@ -593,12 +595,12 @@ export default function Gallery() {
                       </div>
                     ) : (
                       <p className="text-pink-500 text-sm text-center py-2">
-                        <a
-                          href="/login"
-                          className="underline hover:text-pink-400"
+                        <span
+                          onClick={loginWithGoogle}
+                          className="underline hover:text-pink-400 cursor-pointer"
                         >
                           Sign in
-                        </a>{" "}
+                        </span>{" "}
                         to leave a comment
                       </p>
                     )}
