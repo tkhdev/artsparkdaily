@@ -2226,14 +2226,15 @@ exports.addSubmissionComment = onCall(async (request) => {
   try {
     const userDoc = await db.doc(`users/${userId}`).get();
     const userData = userDoc.data();
-
+    const commentId = Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
+    
     const comment = {
-      id: admin.firestore.FieldValue.serverTimestamp().toString(),
+      id: commentId, // Use the generated ID
       userId,
       userDisplayName: userData.displayName || 'Anonymous',
       userPhotoURL: userData.photoURL || null,
       text: text.trim(),
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.Timestamp.now(),
     };
 
     const submissionRef = db.doc(`submissions/${submissionId}`);
@@ -2275,7 +2276,7 @@ exports.addSubmissionComment = onCall(async (request) => {
     return { success: true, comment };
   } catch (error) {
     console.error('Error adding comment:', error);
-    throw new functions.https.HttpsError('internal', error.message);
+    throw new functions.https.HttpsError('internal', error.message, error);
   }
 });
 
