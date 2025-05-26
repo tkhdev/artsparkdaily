@@ -7,7 +7,12 @@ import {
   faChevronDown,
   faChevronUp,
   faCrown,
-  faTrophy
+  faTrophy,
+  faFilter,
+  faSort,
+  faCalendarAlt,
+  faImage,
+  faStar
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 import { useGalleryData } from "../../hooks/useGalleryData";
@@ -312,76 +317,87 @@ export default function Gallery() {
   };
 
   return (
-    <main className="max-w-7xl mx-auto p-8 rounded-3xl shadow-2xl bg-gradient-to-br from-purple-800 via-pink-800 to-purple-900 my-12">
-      <header className="mb-12 flex flex-col md:flex-row md:justify-between md:items-center gap-6">
-        <div>
-          <h1 className="text-5xl font-extrabold drop-shadow-lg">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">
-              Art Gallery
-            </span>
-          </h1>
-        </div>
-
-        <div className="flex gap-6 items-center text-pink-400 select-none">
-          <div className="flex flex-col">
-            <label className="text-sm text-pink-500 font-semibold mb-1">
-              Filter
-            </label>
-            <select
-              className="rounded-lg px-3 py-2 bg-purple-950 text-white border border-purple-700"
-              value={selectedChallengeId}
-              onChange={(e) => setSelectedChallengeId(e.target.value)}
-            >
-              {challenges.map((challenge) => (
-                <option key={challenge.id} value={challenge.id}>
-                  {challenge.title} -{" "}
-                  {challenge.date.toISOString().split("T")[0]}
-                  {isChallengeCompleted(challenge.id) ? " 👑" : ""}
-                </option>
-              ))}
-              <option value="all">All Time</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-sm text-pink-500 font-semibold mb-1">
-              Sort by
-            </label>
-            <select
-              className="rounded-lg px-3 py-2 bg-purple-950 text-white border border-purple-700"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="createdAt">Newest</option>
-              <option value="likesCount">Most Liked</option>
-              <option value="commentsCount">Most Commented</option>
-            </select>
-          </div>
-        </div>
+    <main className="max-w-7xl mx-auto p-8 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-800 rounded-3xl shadow-2xl text-gray-100 my-8 select-none">
+      {/* Header */}
+      <header className="text-center mb-12">
+        <h1 className="text-5xl font-extrabold mb-4">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">
+            Art Gallery
+          </span>
+        </h1>
+        <p className="text-pink-300 text-lg">
+          Discover amazing AI-generated artwork from our creative community
+        </p>
       </header>
 
-      {error && <p className="text-red-400 text-center mb-4">{error}</p>}
+      {/* Controls */}
+      <div className="flex flex-wrap justify-center gap-6 mb-12">
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-2 mb-2">
+            <FontAwesomeIcon icon={faFilter} className="text-pink-400" />
+            <label className="text-sm text-pink-300 font-semibold">
+              Filter Challenges
+            </label>
+          </div>
+          <select
+            className="bg-gradient-to-r from-pink-900/60 to-purple-900/60 border border-pink-600/50 rounded-xl px-4 py-3 text-white font-semibold hover:bg-pink-800/60 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pink-500"
+            value={selectedChallengeId}
+            onChange={(e) => setSelectedChallengeId(e.target.value)}
+          >
+            {challenges.map((challenge) => (
+              <option key={challenge.id} value={challenge.id} className="bg-purple-900">
+                {challenge.title} - {challenge.date.toISOString().split("T")[0]}
+                {isChallengeCompleted(challenge.id) ? " 👑" : ""}
+              </option>
+            ))}
+            <option value="all" className="bg-purple-900">All Time</option>
+          </select>
+        </div>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-2 mb-2">
+            <FontAwesomeIcon icon={faSort} className="text-pink-400" />
+            <label className="text-sm text-pink-300 font-semibold">
+              Sort By
+            </label>
+          </div>
+          <select
+            className="bg-gradient-to-r from-pink-900/60 to-purple-900/60 border border-pink-600/50 rounded-xl px-4 py-3 text-white font-semibold hover:bg-pink-800/60 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pink-500"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="createdAt" className="bg-purple-900">Newest First</option>
+            <option value="likesCount" className="bg-purple-900">Most Liked</option>
+            <option value="commentsCount" className="bg-purple-900">Most Commented</option>
+          </select>
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-900/40 border border-red-500/50 rounded-xl p-4 mb-8 text-center">
+          <p className="text-red-300">{error}</p>
+        </div>
+      )}
+
+      {/* Gallery Grid */}
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
         {submissions.map((submission) => {
           const submissionIsWinner = isWinner(submission.id);
           const winnerData = getWinnerData(submission.id);
-          const challengeCompleted = isChallengeCompleted(
-            submission.challengeId
-          );
+          const challengeCompleted = isChallengeCompleted(submission.challengeId);
 
           return (
             <article
               key={submission.id}
-              style={{ height: "fit-content" }}
-              className={`bg-purple-900/80 backdrop-blur rounded-xl shadow-lg flex flex-col overflow-hidden relative ${
+              className={`bg-gradient-to-br h-fit ${
                 submissionIsWinner
-                  ? "ring-2 ring-yellow-400 shadow-yellow-400/20"
-                  : ""
-              }`}
+                  ? 'from-yellow-900/60 to-orange-900/60 border-2 border-yellow-500 shadow-yellow-500/20'
+                  : 'from-pink-900/60 to-purple-900/60 border border-pink-600/50'
+              } rounded-2xl overflow-hidden hover:scale-105 transition-all duration-300 shadow-xl backdrop-blur-sm`}
             >
+              {/* Winner Banner */}
               {submissionIsWinner && (
-                <div className="bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 text-black text-center py-2 px-4">
+                <div className="bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 text-black text-center py-3 px-4">
                   <div className="flex items-center justify-center gap-2 text-sm font-bold">
                     <FontAwesomeIcon icon={faTrophy} />
                     <span>Daily Challenge Winner</span>
@@ -396,180 +412,171 @@ export default function Gallery() {
                 </div>
               )}
 
+              {/* User Header */}
               <header className="flex items-center gap-3 p-4 pb-2">
                 <div className="relative">
                   <img
                     src={submission.userPhotoURL}
                     alt={submission.userDisplayName}
-                    className="w-10 h-10 rounded-full object-cover"
+                    className={`w-12 h-12 rounded-full object-cover border-2 ${
+                      submissionIsWinner ? 'border-yellow-400' : 'border-pink-500'
+                    }`}
                   />
                   {submissionIsWinner && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center">
-                      <FontAwesomeIcon
-                        icon={faCrown}
-                        className="text-black text-xs"
-                      />
+                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                      <FontAwesomeIcon icon={faCrown} className="text-black text-xs" />
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-semibold text-lg truncate flex items-center gap-2">
+                  <h3 className="text-white font-bold text-lg truncate flex items-center gap-2">
                     {submission.userDisplayName}
                     {submissionIsWinner && (
-                      <span className="text-yellow-400 text-sm">👑</span>
+                      <FontAwesomeIcon icon={faStar} className="text-yellow-400 text-sm" />
                     )}
                   </h3>
                   {challengeCompleted && !submissionIsWinner && (
-                    <p className="text-pink-400 text-xs">Challenge Completed</p>
+                    <div className="flex items-center gap-1 text-pink-400 text-xs">
+                      <FontAwesomeIcon icon={faCalendarAlt} />
+                      <span>Challenge Completed</span>
+                    </div>
                   )}
                 </div>
               </header>
 
+              {/* Image */}
               <Link to={`/submission/${submission.id}`}>
-                <div className="relative">
+                <div className="relative mx-4 mb-4 rounded-xl overflow-hidden group">
                   <img
                     src={submission.imageUrl}
                     alt={submission.prompt}
-                    className="rounded-md w-full max-h-64 object-cover hover:opacity-90 transition"
+                    className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-500"
                     loading="lazy"
                   />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   {submissionIsWinner && (
-                    <div className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent" />
                   )}
                 </div>
               </Link>
 
-              <footer className="p-4 pt-3">
-                <div className="flex justify-between text-pink-400 text-sm mb-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleToggleLike(submission.id)}
-                      disabled={likeLoading[submission.id]}
-                      className="focus:outline-none hover:scale-110 transition-transform"
-                      aria-label={
+              {/* Footer */}
+              <footer className="p-4 pt-0">
+                {/* Stats */}
+                <div className="flex justify-between items-center mb-4">
+                  <button
+                    onClick={() => handleToggleLike(submission.id)}
+                    disabled={likeLoading[submission.id]}
+                    className="flex items-center gap-2 hover:scale-110 transition-transform focus:outline-none group"
+                    aria-label={
+                      userLikes[submission.id] ? "Unlike submission" : "Like submission"
+                    }
+                  >
+                    <FontAwesomeIcon
+                      icon={userLikes[submission.id] ? faHeart : faHeartOutline}
+                      className={`text-xl transition-colors ${
                         userLikes[submission.id]
-                          ? "Unlike submission"
-                          : "Like submission"
-                      }
-                    >
-                      <FontAwesomeIcon
-                        icon={
-                          userLikes[submission.id] ? faHeart : faHeartOutline
-                        }
-                        className={`transition-colors ${
-                          userLikes[submission.id]
-                            ? "text-red-500"
-                            : submissionIsWinner
-                            ? "text-yellow-400"
-                            : "text-pink-400"
-                        } ${
-                          animatingLikes[submission.id]
-                            ? "animate-like-pop"
-                            : ""
-                        }`}
-                        style={{ fontSize: "1.25rem" }}
-                      />
-                    </button>
-                    <span
-                      className={
-                        submissionIsWinner
-                          ? "text-yellow-400 font-semibold"
-                          : ""
-                      }
-                    >
+                          ? "text-red-500"
+                          : submissionIsWinner
+                          ? "text-yellow-400 group-hover:text-red-400"
+                          : "text-pink-400 group-hover:text-red-400"
+                      } ${animatingLikes[submission.id] ? "animate-pulse" : ""}`}
+                    />
+                    <span className={`font-semibold ${
+                      submissionIsWinner ? "text-yellow-300" : "text-pink-300"
+                    }`}>
                       {likeCounts[submission.id] ?? 0}
                     </span>
-                  </div>
+                  </button>
 
                   <button
                     onClick={() => handleToggleComments(submission.id)}
-                    className={`flex items-center gap-2 hover:text-pink-300 transition-colors focus:outline-none ${
+                    className={`flex items-center gap-2 hover:scale-110 transition-all duration-300 focus:outline-none ${
                       submissionIsWinner
                         ? "text-yellow-400 hover:text-yellow-300"
-                        : ""
+                        : "text-pink-400 hover:text-pink-300"
                     }`}
                   >
-                    <FontAwesomeIcon icon={faComment} />
-                    <span>
+                    <FontAwesomeIcon icon={faComment} className="text-lg" />
+                    <span className="font-semibold">
                       {(submissionComments[submission.id] || []).length}
                     </span>
                     <FontAwesomeIcon
-                      icon={
-                        expandedComments[submission.id]
-                          ? faChevronUp
-                          : faChevronDown
-                      }
-                      className="text-xs"
+                      icon={expandedComments[submission.id] ? faChevronUp : faChevronDown}
+                      className="text-sm"
                     />
                   </button>
 
-                  <div className="flex items-center gap-2 text-pink-500">
+                  <div className={`flex items-center gap-2 text-sm ${
+                    submissionIsWinner ? "text-yellow-400" : "text-pink-400"
+                  }`}>
                     <FontAwesomeIcon icon={faEye} />
-                    <span>
-                      {new Date(submission.createdAt).toLocaleDateString()}
-                    </span>
+                    <span>{new Date(submission.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
 
+                {/* Comments Section */}
                 {expandedComments[submission.id] && (
-                  <div className="border-t border-purple-700 pt-3 space-y-3">
+                  <div className={`border-t ${
+                    submissionIsWinner ? 'border-yellow-600/50' : 'border-pink-600/50'
+                  } pt-4 space-y-3`}>
                     {submissionComments[submission.id]?.length > 0 ? (
                       <div
                         ref={(el) => (commentsRefs.current[submission.id] = el)}
-                        className="max-h-48 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-pink-500 scrollbar-track-purple-900"
+                        className="max-h-48 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-pink-500 scrollbar-track-purple-900"
                       >
-                        {submissionComments[submission.id].map(
-                          (comment, index) => {
-                            return (
-                              <div key={index} className="flex gap-2 text-sm">
-                                <img
-                                  src={
-                                    comment.userPhotoURL ||
-                                    "/default-avatar.png"
-                                  }
-                                  alt={comment.userDisplayName}
-                                  className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-0.5"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-baseline gap-2 flex-wrap">
-                                    <span className="font-semibold text-pink-300 text-xs">
-                                      {comment.userDisplayName}
-                                    </span>
-                                    <span className="text-pink-500 text-xs">
-                                      {formatCommentDate(comment.createdAt)}
-                                    </span>
-                                  </div>
-                                  <p className="text-white text-sm break-words">
-                                    {comment.text}
-                                  </p>
-                                </div>
+                        {submissionComments[submission.id].map((comment, index) => (
+                          <div key={index} className="flex gap-3">
+                            <img
+                              src={comment.userPhotoURL || "/default-avatar.png"}
+                              alt={comment.userDisplayName}
+                              className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-pink-500"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2 mb-1">
+                                <span className="font-semibold text-pink-300 text-sm">
+                                  {comment.userDisplayName}
+                                </span>
+                                <span className="text-pink-500 text-xs">
+                                  {formatCommentDate(comment.createdAt)}
+                                </span>
                               </div>
-                            );
-                          }
-                        )}
+                              <p className="text-white text-sm break-words bg-pink-900/30 rounded-lg px-3 py-2">
+                                {comment.text}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
-                      <p className="text-pink-500 text-sm text-center py-2">
-                        No comments yet. Be the first to comment!
-                      </p>
+                      <div className="text-center py-6">
+                        <FontAwesomeIcon 
+                          icon={faComment} 
+                          className="text-3xl text-pink-500/50 mb-2" 
+                        />
+                        <p className="text-pink-400 text-sm">
+                          No comments yet. Be the first to comment!
+                        </p>
+                      </div>
                     )}
 
+                    {/* Comment Input */}
                     {user ? (
-                      <div className="flex gap-2 pt-2 border-t border-purple-700/50">
+                      <div className={`flex gap-3 pt-3 border-t ${
+                        submissionIsWinner ? 'border-yellow-600/30' : 'border-pink-600/30'
+                      }`}>
                         <img
                           src={user.photoURL || "/default-avatar.png"}
                           alt={user.displayName}
-                          className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-1"
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-pink-500"
                         />
                         <div className="flex-1 flex gap-2">
                           <textarea
                             value={newComments[submission.id] || ""}
-                            onChange={(e) =>
-                              handleCommentChange(submission.id, e.target.value)
-                            }
+                            onChange={(e) => handleCommentChange(submission.id, e.target.value)}
                             onKeyPress={(e) => handleKeyPress(e, submission.id)}
                             placeholder="Add a comment..."
-                            className="flex-1 bg-purple-800 text-white text-sm rounded-lg px-3 py-2 border border-purple-600 focus:border-pink-400 focus:outline-none resize-none"
+                            className="flex-1 bg-gradient-to-r from-purple-900/60 to-pink-900/60 text-white text-sm rounded-lg px-3 py-2 border border-pink-600/50 focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-500/50 resize-none backdrop-blur-sm"
                             rows="2"
                             maxLength="500"
                             disabled={commentLoading[submission.id]}
@@ -580,29 +587,27 @@ export default function Gallery() {
                               commentLoading[submission.id] ||
                               !newComments[submission.id]?.trim()
                             }
-                            className="px-3 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                            className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white rounded-lg hover:from-pink-500 hover:to-purple-500 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-lg hover:scale-105"
                           >
                             <FontAwesomeIcon
                               icon={faPaperPlane}
-                              className={
-                                commentLoading[submission.id]
-                                  ? "animate-pulse"
-                                  : ""
-                              }
+                              className={commentLoading[submission.id] ? "animate-pulse" : ""}
                             />
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-pink-500 text-sm text-center py-2">
-                        <span
-                          onClick={loginWithGoogle}
-                          className="underline hover:text-pink-400 cursor-pointer"
-                        >
-                          Sign in
-                        </span>{" "}
-                        to leave a comment
-                      </p>
+                      <div className="text-center py-4 bg-pink-900/30 rounded-lg">
+                        <p className="text-pink-400 text-sm">
+                          <button
+                            onClick={loginWithGoogle}
+                            className="text-pink-300 hover:text-white underline font-semibold transition-colors"
+                          >
+                            Sign in
+                          </button>{" "}
+                          to leave a comment
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}
@@ -612,15 +617,25 @@ export default function Gallery() {
         })}
       </section>
 
-      {loading && <p className="text-center text-white mt-6">Loading...</p>}
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center py-12">
+          <div className="inline-flex items-center gap-3 text-pink-300">
+            <div className="w-6 h-6 border-2 border-pink-400 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-lg font-semibold">Loading amazing artwork...</span>
+          </div>
+        </div>
+      )}
 
+      {/* Load More Button */}
       {!loading && hasMore && (
-        <div className="text-center mt-8">
+        <div className="text-center">
           <button
             onClick={loadMore}
-            className="px-6 py-3 rounded-xl bg-pink-600 text-white hover:bg-pink-500 transition shadow-lg"
+            className="flex items-center gap-3 mx-auto px-8 py-4 bg-gradient-to-r from-pink-600 to-purple-700 text-white font-semibold rounded-2xl hover:from-pink-500 hover:to-purple-600 transition-all duration-300 shadow-xl hover:scale-105"
           >
-            Load More
+            <FontAwesomeIcon icon={faImage} />
+            <span>Load More Artwork</span>
           </button>
         </div>
       )}
