@@ -1,8 +1,10 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faGoogle } from "@fortawesome/free-brands-svg-icons";
 import GlowButton from "../GlowButton/GlowButton";
+import { useAuthActions } from "../../hooks/useAuthActions";
 
 export default function JoinCommunity() {
+  const { loginWithGoogle } = useAuthActions();
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto bg-gradient-to-r from-purple-800/50 to-pink-800/50 rounded-3xl shadow-xl border border-white/10 overflow-hidden">
@@ -15,7 +17,10 @@ export default function JoinCommunity() {
             your unique AI-generated creations with the world.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <GlowButton className="glow-button bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 px-8 rounded-lg flex items-center justify-center">
+            <GlowButton
+              className="glow-button bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 px-8 rounded-lg flex items-center justify-center"
+              onClick={loginWithGoogle}
+            >
               <FontAwesomeIcon icon={faGoogle} className="mr-2" />
               Sign up with Google
             </GlowButton>
