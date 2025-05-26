@@ -6,6 +6,11 @@ const createDailyChallengeManual = httpsCallable(
   "createDailyChallengeManual"
 );
 
+const runDetermineDailyWinnerManual = httpsCallable(
+  functions,
+  "runDetermineDailyWinnerManual"
+);
+
 export default function Dev() {
   const trigger = async () => {
     try {
@@ -15,5 +20,20 @@ export default function Dev() {
       console.error("Function call failed:", error.message);
     }
   };
-  return <button onClick={trigger}>click</button>;
+
+  const dw = () => {
+    runDetermineDailyWinnerManual().then((res) => {
+      console.log(res.data);
+    });
+  };
+  return (
+    <>
+      <p>
+        <button onClick={trigger}>click to create challenge</button>
+      </p>
+      <p>
+        <button onClick={dw}>click to determine winner</button>
+      </p>
+    </>
+  );
 }
