@@ -5,9 +5,12 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import HowItWorksStep from "./HowItWorksStep";
 import { useAuth } from "../../context/AuthContext";
+import { useAuthActions } from "../../hooks/useAuthActions";
 
 export default function HowItWorks() {
   const { user } = useAuth();
+  const { loginWithGoogle } = useAuthActions();
+
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-gradient-to-b from-transparent to-purple-900/20 rounded-3xl">
       <div className="text-center mb-16">
@@ -40,7 +43,10 @@ export default function HowItWorks() {
 
       {!user && (
         <div className="text-center mt-16">
-          <button className="bg-white text-purple-900 hover:bg-gray-100 font-bold py-4 px-8 rounded-full shadow-lg transform transition hover:scale-105">
+          <button
+            className="bg-white text-purple-900 hover:bg-gray-100 font-bold py-4 px-8 rounded-full shadow-lg transform transition hover:scale-105"
+            onClick={loginWithGoogle}
+          >
             Start Creating Now
           </button>
         </div>
