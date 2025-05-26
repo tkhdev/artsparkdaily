@@ -255,7 +255,18 @@ export default function DailyChallengeCard() {
 
   const formatDate = (timestamp) => {
     if (!timestamp) return "Today";
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+
+    let date;
+    if (timestamp.toDate && typeof timestamp.toDate === "function") {
+      date = timestamp.toDate(); // Firestore Timestamp
+    } else if (timestamp instanceof Date) {
+      date = timestamp; // Already a Date
+    } else if (typeof timestamp === "string" || typeof timestamp === "number") {
+      date = new Date(timestamp); // ISO string or milliseconds
+    } else {
+      return "Invalid Date";
+    }
+
     return date.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
@@ -378,7 +389,11 @@ export default function DailyChallengeCard() {
               />
               <p className="text-gray-400 text-sm mt-2">
                 Submitted at{" "}
-                {userSubmission.createdAt?.toDate()?.toLocaleString()}
+                {userSubmission.createdAt
+                  ? userSubmission.createdAt.toDate
+                    ? userSubmission.createdAt.toDate().toLocaleString()
+                    : new Date(userSubmission.createdAt).toLocaleString()
+                  : "Unknown"}
               </p>
             </div>
           )}
