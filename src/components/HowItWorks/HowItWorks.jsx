@@ -4,8 +4,10 @@ import {
   faShareNodes
 } from "@fortawesome/free-solid-svg-icons";
 import HowItWorksStep from "./HowItWorksStep";
+import { useAuth } from "../../context/AuthContext";
 
 export default function HowItWorks() {
+  const { user } = useAuth();
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-gradient-to-b from-transparent to-purple-900/20 rounded-3xl">
       <div className="text-center mb-16">
@@ -36,11 +38,13 @@ export default function HowItWorks() {
         />
       </div>
 
-      <div className="text-center mt-16">
-        <button className="bg-white text-purple-900 hover:bg-gray-100 font-bold py-4 px-8 rounded-full shadow-lg transform transition hover:scale-105">
-          Start Creating Now
-        </button>
-      </div>
+      {!user && (
+        <div className="text-center mt-16">
+          <button className="bg-white text-purple-900 hover:bg-gray-100 font-bold py-4 px-8 rounded-full shadow-lg transform transition hover:scale-105">
+            Start Creating Now
+          </button>
+        </div>
+      )}
     </section>
   );
 }
