@@ -73,7 +73,7 @@ export default function usePollinationsImage(challengeId) {
 
       const cleanPrompt = prompt.trim().replace(/[^\w\s,-]/g, "");
       const encodedPrompt = encodeURIComponent(cleanPrompt);
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${Date.now()}`;
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${Date.now()}&nologo=true`;
 
       const img = new Image();
       img.crossOrigin = "anonymous";

@@ -11,9 +11,11 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 import { useAuthActions } from "../../hooks/useAuthActions";
+import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
 
 function Header() {
   const { user, loading } = useAuth();
+  const { profile } = useOwnUserProfile();
   const { loginWithGoogle, logout } = useAuthActions();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -62,14 +64,14 @@ function Header() {
           <div className="flex items-center space-x-4 relative">
             {!loading && (
               <div className="hidden md:block">
-                {user ? (
+                {user && profile ? (
                   <div className="relative" ref={dropdownRef}>
                     <button
                       onClick={() => setDropdownOpen((prev) => !prev)}
                       className="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 flex items-center space-x-2 transition duration-300 cursor-pointer"
                     >
                       <FontAwesomeIcon icon={faUserCircle} />
-                      <span>{user.displayName || "User"}</span>
+                      <span>{profile.displayName || "User"}</span>
                       <FontAwesomeIcon icon={faChevronDown} className="ml-1 text-xs" />
                     </button>
 

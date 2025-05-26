@@ -430,7 +430,12 @@ export default function Gallery() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white font-bold text-lg truncate flex items-center gap-2">
-                    {submission.userDisplayName}
+                    <Link 
+                      to={`/profile/${submission.userId}`} 
+                      className="hover:text-pink-300 transition-colors"
+                    >
+                      {submission.userDisplayName}
+                    </Link>
                     {submissionIsWinner && (
                       <FontAwesomeIcon icon={faStar} className="text-yellow-400 text-sm" />
                     )}
