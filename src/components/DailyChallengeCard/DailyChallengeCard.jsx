@@ -23,7 +23,7 @@ export default function DailyChallengeCard() {
   const { challenge, loading, error } = useDailyChallenge();
   const [prompt, setPrompt] = useState("");
   const [timeRemaining, setTimeRemaining] = useState("");
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // Use the Pollinations hook (now handles attempts tracking)
   const {
@@ -151,7 +151,7 @@ export default function DailyChallengeCard() {
         prompt: prompt.trim(),
         imageUrl: imageUrl,
         userId: user.uid,
-        userDisplayName: user.displayName || "Anonymous",
+        userDisplayName: profile.displayName || user.displayName || "Anonymous",
         userPhotoURL: user.photoURL || null
       });
 

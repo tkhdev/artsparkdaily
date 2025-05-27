@@ -1,7 +1,21 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, logEvent } from "firebase/analytics";
-import { getFirestore } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  where
+} from "firebase/firestore";
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import {
   getAuth,
@@ -42,5 +56,11 @@ export {
   uploadBytes,
   getDownloadURL,
   deleteObject,
-  functions
+  functions,
+  collection,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  where
 };

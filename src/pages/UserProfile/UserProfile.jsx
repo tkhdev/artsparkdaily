@@ -21,36 +21,21 @@ import { useAuth } from "../../context/AuthContext";
 import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
 import toast, { Toaster } from "react-hot-toast";
 
-// Firebase storage imports (added deleteObject)
-import { storage, ref, uploadBytes, getDownloadURL, deleteObject } from "../../firebase-config";
-
-const achievements = [
-  { icon: faFire, label: "Daily Streak", value: "8 days", color: "text-orange-400", bgGradient: "from-orange-500/20 to-red-500/20", borderColor: "border-orange-400/50" },
-  { icon: faStar, label: "Top Submission", value: "256 likes", color: "text-yellow-400", bgGradient: "from-yellow-500/20 to-amber-500/20", borderColor: "border-yellow-400/50" },
-  { icon: faThumbsUp, label: "Total Likes", value: "1,024", color: "text-blue-400", bgGradient: "from-blue-500/20 to-cyan-500/20", borderColor: "border-blue-400/50" },
-  { icon: faMedal, label: "Challenges Won", value: "3", color: "text-purple-400", bgGradient: "from-purple-500/20 to-pink-500/20", borderColor: "border-purple-400/50" }
-];
-
-const submissions = [
-  {
-    id: 1,
-    title: "Neon Jungle",
-    img: "https://picsum.photos/id/1043/200/200",
-    likes: 256
-  },
-  {
-    id: 2,
-    title: "Cyber Fox",
-    img: "https://picsum.photos/id/1043/200/200",
-    likes: 198
-  },
-  {
-    id: 3,
-    title: "Pastel Samurai",
-    img: "https://picsum.photos/id/1043/200/200",
-    likes: 142
-  }
-];
+// Firebase imports
+import { 
+  storage, 
+  ref, 
+  uploadBytes, 
+  getDownloadURL, 
+  deleteObject,
+  db,
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs
+} from "../../firebase-config";
 
 export default function UserProfile() {
   const { uid: paramUid } = useParams();
@@ -66,6 +51,12 @@ export default function UserProfile() {
   const [profilePic, setProfilePic] = useState("");
   const [uploadPreview, setUploadPreview] = useState(null);
   const [uploadFile, setUploadFile] = useState(null);
+  
+  // State for real data
+  const [achievements, setAchievements] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
+  const [streak, setStreak] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (profile) {
@@ -78,10 +69,197 @@ export default function UserProfile() {
     }
   }, [profile, targetUid]);
 
+  // Fetch achievements and submissions
+  useEffect(() => {
+    if (targetUid) {
+      fetchUserData();
+    }
+  }, [targetUid]);
+
+  const calculateStreak = (submissions) => {
+    if (!submissions || submissions.length === 0) return 0;
+
+    // Get all submission dates and sort them by date (most recent first)
+    const submissionDates = submissions
+      .map(sub => sub.createdAt?.toDate ? sub.createdAt.toDate() : null)
+      .filter(date => date !== null)
+      .sort((a, b) => b - a);
+
+    if (submissionDates.length === 0) return 0;
+
+    // Helper function to get date string in YYYY-MM-DD format
+    const getDateString = (date) => {
+      return date.toISOString().split('T')[0];
+    };
+
+    // Get today's date string
+    const today = new Date();
+    const todayString = getDateString(today);
+    
+    // Get yesterday's date string
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayString = getDateString(yesterday);
+
+    // Group submissions by date to handle multiple submissions per day
+    const uniqueDates = [...new Set(submissionDates.map(date => getDateString(date)))];
+    uniqueDates.sort((a, b) => new Date(b) - new Date(a)); // Sort most recent first
+
+    if (uniqueDates.length === 0) return 0;
+
+    let streak = 0;
+    const mostRecentSubmissionDate = uniqueDates[0];
+
+    // Check if the streak should start counting
+    // Streak is valid if the most recent submission was today or yesterday
+    if (mostRecentSubmissionDate !== todayString && mostRecentSubmissionDate !== yesterdayString) {
+      return 0; // Streak is broken if no submission today or yesterday
+    }
+
+    // Start calculating the streak
+    let currentDate = new Date(today);
+    
+    // If most recent submission was yesterday, start from yesterday
+    if (mostRecentSubmissionDate === yesterdayString) {
+      currentDate = new Date(yesterday);
+    }
+
+    // Count consecutive days with submissions
+    for (let i = 0; i < uniqueDates.length; i++) {
+      const expectedDateString = getDateString(currentDate);
+      
+      if (uniqueDates[i] === expectedDateString) {
+        streak++;
+        // Move to previous day
+        currentDate.setDate(currentDate.getDate() - 1);
+      } else {
+        // Gap found, streak ends
+        break;
+      }
+    }
+
+    return streak;
+  };
+
+  const fetchUserData = async () => {
+    setLoading(true);
+    try {
+      // Fetch achievements from users/{userId}/achievements subcollection
+      const achievementsRef = collection(db, 'users', targetUid, 'achievements');
+      const achievementsSnapshot = await getDocs(achievementsRef);
+      const userAchievements = achievementsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Map achievements to display format with icons and colors
+      const mappedAchievements = userAchievements.map(achievement => ({
+        icon: getAchievementIcon(achievement.id),
+        label: achievement.name,
+        value: achievement.description,
+        color: getAchievementColor(achievement.id),
+        bgGradient: getAchievementBgGradient(achievement.id),
+        borderColor: getAchievementBorderColor(achievement.id),
+        unlockedAt: achievement.unlockedAt
+      }));
+
+      setAchievements(mappedAchievements);
+
+      // Fetch ALL user submissions for streak calculation (not limited)
+      const allSubmissionsRef = collection(db, 'submissions');
+      const allSubmissionsQuery = query(
+        allSubmissionsRef,
+        where('userId', '==', targetUid),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const allSubmissionsSnapshot = await getDocs(allSubmissionsQuery);
+      const allUserSubmissions = allSubmissionsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Calculate streak using all submissions
+      const calculatedStreak = calculateStreak(allUserSubmissions);
+      setStreak(calculatedStreak);
+
+      // Set limited submissions for display (latest 12)
+      const displaySubmissions = allUserSubmissions.slice(0, 12);
+      setSubmissions(displaySubmissions);
+
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      toast.error('Failed to load user data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper functions for achievement styling
+  const getAchievementIcon = (achievementId) => {
+    const iconMap = {
+      'first_spark': faFire,
+      'weekly_streak': faFire,
+      'daily_streak': faFire,
+      'top_submission': faStar,
+      'total_likes': faThumbsUp,
+      'challenges_won': faMedal,
+      'featured_artist': faCrown,
+      'prolific_creator': faImage,
+      'community_favorite': faHeart
+    };
+    return iconMap[achievementId] || faTrophy;
+  };
+
+  const getAchievementColor = (achievementId) => {
+    const colorMap = {
+      'first_spark': 'text-orange-400',
+      'weekly_streak': 'text-orange-400',
+      'daily_streak': 'text-orange-400',
+      'top_submission': 'text-yellow-400',
+      'total_likes': 'text-blue-400',
+      'challenges_won': 'text-purple-400',
+      'featured_artist': 'text-pink-400',
+      'prolific_creator': 'text-green-400',
+      'community_favorite': 'text-red-400'
+    };
+    return colorMap[achievementId] || 'text-gray-400';
+  };
+
+  const getAchievementBgGradient = (achievementId) => {
+    const gradientMap = {
+      'first_spark': 'from-orange-500/20 to-red-500/20',
+      'weekly_streak': 'from-orange-500/20 to-red-500/20',
+      'daily_streak': 'from-orange-500/20 to-red-500/20',
+      'top_submission': 'from-yellow-500/20 to-amber-500/20',
+      'total_likes': 'from-blue-500/20 to-cyan-500/20',
+      'challenges_won': 'from-purple-500/20 to-pink-500/20',
+      'featured_artist': 'from-pink-500/20 to-rose-500/20',
+      'prolific_creator': 'from-green-500/20 to-emerald-500/20',
+      'community_favorite': 'from-red-500/20 to-pink-500/20'
+    };
+    return gradientMap[achievementId] || 'from-gray-500/20 to-slate-500/20';
+  };
+
+  const getAchievementBorderColor = (achievementId) => {
+    const borderMap = {
+      'first_spark': 'border-orange-400/50',
+      'weekly_streak': 'border-orange-400/50',
+      'daily_streak': 'border-orange-400/50',
+      'top_submission': 'border-yellow-400/50',
+      'total_likes': 'border-blue-400/50',
+      'challenges_won': 'border-purple-400/50',
+      'featured_artist': 'border-pink-400/50',
+      'prolific_creator': 'border-green-400/50',
+      'community_favorite': 'border-red-400/50'
+    };
+    return borderMap[achievementId] || 'border-gray-400/50';
+  };
+
   const stats = {
-    submissions: submissions.length,
-    likes: submissions.reduce((acc, cur) => acc + cur.likes, 0),
-    streak: 8
+    submissions: profile?.totalSubmissions || 0,
+    likes: profile?.totalLikes || 0,
+    streak: streak // Now using the calculated streak
   };
 
   function handleImageChange(e) {
@@ -162,6 +340,19 @@ export default function UserProfile() {
     }
   }
 
+  if (loading) {
+    return (
+      <main className="max-w-6xl mx-auto p-8 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-800 rounded-3xl shadow-2xl text-gray-100 my-8 select-none">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-pink-400 mx-auto mb-4"></div>
+            <p className="text-pink-300 text-xl">Loading profile...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="max-w-6xl mx-auto p-8 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-800 rounded-3xl shadow-2xl text-gray-100 my-8 select-none">
       <Toaster position="top-center" reverseOrder={false} />
@@ -226,7 +417,12 @@ export default function UserProfile() {
                   </h1>
                   <div className="flex items-center justify-center lg:justify-start gap-3 text-pink-300">
                     <FontAwesomeIcon icon={faCalendar} className="text-lg" />
-                    <span className="text-lg font-semibold">Member since 2024</span>
+                    <span className="text-lg font-semibold">
+                      Member since {profile?.createdAt?.toDate ? 
+                        new Date(profile.createdAt.toDate()).getFullYear() : 
+                        '2024'
+                      }
+                    </span>
                   </div>
                 </div>
                 
@@ -320,34 +516,47 @@ export default function UserProfile() {
           <p className="text-pink-300 text-lg">Milestones and accomplishments earned</p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {achievements.map((achieve, i) => (
-            <div
-              key={i}
-              className={`bg-gradient-to-br ${achieve.bgGradient} rounded-2xl p-6 shadow-2xl hover:scale-105 transition-all duration-300 border-2 ${achieve.borderColor} relative overflow-hidden group`}
-            >
-              {/* Background Glow Effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              
-              <div className="relative z-10 text-center">
-                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-black/20 to-black/40 mb-4 ${achieve.color} text-3xl shadow-lg`}>
-                  <FontAwesomeIcon icon={achieve.icon} />
+        {achievements.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {achievements.map((achieve, i) => (
+              <div
+                key={i}
+                className={`bg-gradient-to-br ${achieve.bgGradient} rounded-2xl p-6 shadow-2xl hover:scale-105 transition-all duration-300 border-2 ${achieve.borderColor} relative overflow-hidden group`}
+              >
+                {/* Background Glow Effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                
+                <div className="relative z-10 text-center">
+                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-black/20 to-black/40 mb-4 ${achieve.color} text-3xl shadow-lg`}>
+                    <FontAwesomeIcon icon={achieve.icon} />
+                  </div>
+                  <h3 className="font-bold text-white text-lg mb-2 drop-shadow-lg">
+                    {achieve.label}
+                  </h3>
+                  <p className={`${achieve.color} font-bold text-sm drop-shadow-lg mb-2`}>
+                    {achieve.value}
+                  </p>
+                  {achieve.unlockedAt && (
+                    <p className="text-gray-300 text-xs">
+                      Unlocked {new Date(achieve.unlockedAt.toDate()).toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
-                <h3 className="font-bold text-white text-lg mb-2 drop-shadow-lg">
-                  {achieve.label}
-                </h3>
-                <p className={`${achieve.color} font-bold text-xl drop-shadow-lg`}>
-                  {achieve.value}
-                </p>
+                
+                {/* Achievement Badge */}
+                <div className="absolute top-3 right-3">
+                  <FontAwesomeIcon icon={faTrophy} className="text-yellow-400/30 text-lg" />
+                </div>
               </div>
-              
-              {/* Achievement Badge */}
-              <div className="absolute top-3 right-3">
-                <FontAwesomeIcon icon={faTrophy} className="text-yellow-400/30 text-lg" />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <FontAwesomeIcon icon={faTrophy} className="text-6xl text-gray-500 mb-4" />
+            <p className="text-gray-400 text-xl">No achievements yet</p>
+            <p className="text-gray-500">Start creating to unlock your first achievement!</p>
+          </div>
+        )}
       </section>
 
       {/* Submissions Gallery */}
@@ -361,45 +570,64 @@ export default function UserProfile() {
           <p className="text-pink-300 text-lg">Latest creative submissions and masterpieces</p>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {submissions.map((sub) => (
-            <div
-              key={sub.id}
-              className="group relative rounded-3xl overflow-hidden shadow-2xl border-2 border-pink-500/30 hover:border-pink-400/60 transition-all duration-500 bg-gradient-to-br from-pink-900/20 to-purple-900/20 hover:scale-105"
-            >
-              <div className="relative overflow-hidden">
-                <img
-                  src={sub.img}
-                  alt={sub.title}
-                  className="w-full h-80 object-cover transition-transform duration-700 group-hover:scale-110"
-                />
-                {/* Overlay Gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity duration-300"></div>
-              </div>
-              
-              {/* Content Overlay */}
-              <div className="absolute bottom-0 left-0 right-0 p-6">
-                <div className="space-y-3">
-                  <h3 className="text-white font-bold text-xl drop-shadow-lg group-hover:text-pink-300 transition-colors duration-300">
-                    {sub.title}
-                  </h3>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 bg-pink-600/80 rounded-full px-4 py-2 backdrop-blur-sm">
-                      <FontAwesomeIcon icon={faHeart} className="text-pink-200" />
-                      <span className="text-white font-semibold">{sub.likes}</span>
-                    </div>
-                    <div className="bg-purple-600/80 rounded-full px-4 py-2 backdrop-blur-sm">
-                      <span className="text-white font-semibold text-sm">Featured</span>
+        {submissions.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {submissions.map((sub) => (
+              <div
+                key={sub.id}
+                className="group relative rounded-3xl overflow-hidden shadow-2xl border-2 border-pink-500/30 hover:border-pink-400/60 transition-all duration-500 bg-gradient-to-br from-pink-900/20 to-purple-900/20 hover:scale-105"
+              >
+                <div className="relative overflow-hidden">
+                  <img
+                    src={sub.imageUrl}
+                    alt={sub.prompt}
+                    className="w-full h-80 object-cover transition-transform duration-700 group-hover:scale-110"
+                    onError={(e) => {
+                      // Fallback to original URL if Firebase Storage URL fails
+                      e.target.src = sub.originalImageUrl;
+                    }}
+                  />
+                  {/* Overlay Gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity duration-300"></div>
+                </div>
+                
+                {/* Content Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                  <div className="space-y-3">
+                    <h3 className="text-white font-bold text-xl drop-shadow-lg group-hover:text-pink-300 transition-colors duration-300 line-clamp-2">
+                      {sub.prompt || "Untitled"}
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-pink-600/80 rounded-full px-4 py-2 backdrop-blur-sm">
+                        <FontAwesomeIcon icon={faHeart} className="text-pink-200" />
+                        <span className="text-white font-semibold">{sub.likesCount || 0}</span>
+                      </div>
+                      {sub.featured && (
+                        <div className="bg-purple-600/80 rounded-full px-4 py-2 backdrop-blur-sm">
+                          <span className="text-white font-semibold text-sm">Featured</span>
+                        </div>
+                      )}
+                      <div className="bg-blue-600/80 rounded-full px-4 py-2 backdrop-blur-sm">
+                        <span className="text-white font-semibold text-sm">
+                          {new Date(sub.createdAt.toDate()).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
+                
+                {/* Hover Effect Border */}
+                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-pink-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-pink-500/20 group-hover:via-purple-500/20 group-hover:to-pink-500/20 transition-all duration-500 pointer-events-none"></div>
               </div>
-              
-              {/* Hover Effect Border */}
-              <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-pink-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-pink-500/20 group-hover:via-purple-500/20 group-hover:to-pink-500/20 transition-all duration-500 pointer-events-none"></div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <FontAwesomeIcon icon={faImage} className="text-6xl text-gray-500 mb-4" />
+            <p className="text-gray-400 text-xl">No submissions yet</p>
+            <p className="text-gray-500">Start creating art to build your gallery!</p>
+          </div>
+        )}
       </section>
     </main>
   );
