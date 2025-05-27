@@ -2434,32 +2434,36 @@ async function determineDailyWinnerInternal(manual = false) {
 // 5. Helper function to check and award achievements
 async function checkAndAwardAchievement(userId, achievementId, metadata = {}) {
   try {
-    const achievementRef = db.doc(`users/${userId}/achievements/${achievementId}`);
-    const achievementDoc = await achievementRef.get();
+    const achievementsRef = db.collection(`users/${userId}/achievements`);
+    const querySnapshot = await achievementsRef.where("id", "==", achievementId).get();
     
-    if (achievementDoc.exists()) {
+    if (!querySnapshot.empty) {
+      console.log(`Achievement ${achievementId} already awarded for user ${userId}`);
       return; // Achievement already awarded
     }
     
     const achievementData = getAchievementData(achievementId);
+    if (!achievementData) {
+      console.error(`Invalid achievementId: ${achievementId}`);
+      return;
+    }
     
+    const achievementRef = achievementsRef.doc(); // Use a random ID
     await achievementRef.set({
       ...achievementData,
       unlockedAt: admin.firestore.FieldValue.serverTimestamp(),
       metadata
     });
     
-    // Update user's achievement count
     await db.doc(`users/${userId}`).update({
       achievementsCount: admin.firestore.FieldValue.increment(1)
     });
     
-    // Create notification
-    await db.collection('notifications').add({
+    await db.collection("notifications").add({
       userId,
-      type: 'achievement',
-      title: 'Achievement Unlocked! 🏆',
-      message: `You earned "${achievementData.name}`,
+      type: "achievement",
+      title: "Achievement Unlocked! 🏆",
+      message: `You earned "${achievementData.name}"`,
       read: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       relatedAchievementId: achievementId
@@ -2468,6 +2472,7 @@ async function checkAndAwardAchievement(userId, achievementId, metadata = {}) {
     console.log(`Achievement awarded: ${achievementId} to user ${userId}`);
   } catch (error) {
     console.error('Error awarding achievement:', error);
+    throw error;
   }
 }
 
