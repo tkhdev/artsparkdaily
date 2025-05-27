@@ -2089,13 +2089,15 @@ exports.getRecentChallenges = onCall(
   }
 );
 
-
 exports.trackGenerationAttempt = onCall(async (request) => {
   const context = request.auth;
   const data = request.data;
 
   if (!context) {
-    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated"
+    );
   }
 
   const { challengeId } = data;
@@ -2112,11 +2114,14 @@ exports.trackGenerationAttempt = onCall(async (request) => {
     if (userChallengeDoc.exists) {
       const currentAttempts = userChallengeDoc.data().attemptsUsed || 0;
       if (currentAttempts >= maxAttempts) {
-        throw new functions.https.HttpsError('resource-exhausted', 'Maximum attempts reached');
+        throw new functions.https.HttpsError(
+          "resource-exhausted",
+          "Maximum attempts reached"
+        );
       }
       await userChallengeRef.update({
         attemptsUsed: admin.firestore.FieldValue.increment(1),
-        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp()
       });
     } else {
       await userChallengeRef.set({
@@ -2125,14 +2130,14 @@ exports.trackGenerationAttempt = onCall(async (request) => {
         attemptsUsed: 1,
         hasSubmitted: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp()
       });
     }
 
     return { success: true };
   } catch (error) {
-    console.error('Error tracking generation attempt:', error);
-    throw new functions.https.HttpsError('internal', error.message);
+    console.error("Error tracking generation attempt:", error);
+    throw new functions.https.HttpsError("internal", error.message);
   }
 });
 
@@ -2141,7 +2146,10 @@ exports.toggleSubmissionLike = onCall(async (request) => {
   const data = request.data;
 
   if (!context) {
-    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated"
+    );
   }
 
   const { submissionId } = data;
@@ -2152,7 +2160,7 @@ exports.toggleSubmissionLike = onCall(async (request) => {
     const submissionDoc = await submissionRef.get();
 
     if (!submissionDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Submission not found');
+      throw new functions.https.HttpsError("not-found", "Submission not found");
     }
 
     const submission = submissionDoc.data();
@@ -2162,45 +2170,47 @@ exports.toggleSubmissionLike = onCall(async (request) => {
     if (hasLiked) {
       await submissionRef.update({
         likes: admin.firestore.FieldValue.arrayRemove(userId),
-        likesCount: admin.firestore.FieldValue.increment(-1),
+        likesCount: admin.firestore.FieldValue.increment(-1)
       });
       await db.doc(`users/${submission.userId}`).update({
-        totalLikes: admin.firestore.FieldValue.increment(-1),
+        totalLikes: admin.firestore.FieldValue.increment(-1)
       });
     } else {
       await submissionRef.update({
         likes: admin.firestore.FieldValue.arrayUnion(userId),
-        likesCount: admin.firestore.FieldValue.increment(1),
+        likesCount: admin.firestore.FieldValue.increment(1)
       });
       await db.doc(`users/${submission.userId}`).update({
-        totalLikes: admin.firestore.FieldValue.increment(1),
+        totalLikes: admin.firestore.FieldValue.increment(1)
       });
 
       if (userId !== submission.userId) {
         const likerDoc = await db.doc(`users/${userId}`).get();
-        const likerName = likerDoc.data()?.displayName || 'Someone';
+        const likerName = likerDoc.data()?.displayName || "Someone";
 
-        await db.collection('notifications').add({
+        await db.collection("notifications").add({
           userId: submission.userId,
-          type: 'like',
-          title: 'New Like!',
+          type: "like",
+          title: "New Like!",
           message: `${likerName} liked your submission`,
           read: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           relatedSubmissionId: submissionId,
-          relatedUserId: userId,
+          relatedUserId: userId
         });
       }
 
       if ((submission.likesCount || 0) + 1 >= 100) {
-        await checkAndAwardAchievement(submission.userId, 'crowd_favorite', { submissionId });
+        await checkAndAwardAchievement(submission.userId, "crowd_favorite", {
+          submissionId
+        });
       }
     }
 
     return { liked: !hasLiked };
   } catch (error) {
-    console.error('Error toggling like:', error);
-    throw new functions.https.HttpsError('internal', error.message);
+    console.error("Error toggling like:", error);
+    throw new functions.https.HttpsError("internal", error.message);
   }
 });
 
@@ -2209,80 +2219,100 @@ exports.addSubmissionComment = onCall(async (request) => {
   const data = request.data;
 
   if (!context) {
-    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated"
+    );
   }
 
   const { submissionId, text } = data;
   const userId = context.uid;
 
   if (!text?.trim()) {
-    throw new functions.https.HttpsError('invalid-argument', 'Comment text is required');
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Comment text is required"
+    );
   }
 
   if (text.length > 500) {
-    throw new functions.https.HttpsError('invalid-argument', 'Comment too long');
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Comment too long"
+    );
   }
 
   try {
     const userDoc = await db.doc(`users/${userId}`).get();
     const userData = userDoc.data();
-    const commentId = Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
-    
+    const commentId =
+      Date.now().toString() + "_" + Math.random().toString(36).substr(2, 9);
+
     const comment = {
       id: commentId, // Use the generated ID
       userId,
-      userDisplayName: userData.displayName || 'Anonymous',
+      userDisplayName: userData.displayName || "Anonymous",
       userPhotoURL: userData.photoURL || null,
       text: text.trim(),
-      createdAt: admin.firestore.Timestamp.now(),
+      createdAt: admin.firestore.Timestamp.now()
     };
 
     const submissionRef = db.doc(`submissions/${submissionId}`);
     const submissionDoc = await submissionRef.get();
 
     if (!submissionDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Submission not found');
+      throw new functions.https.HttpsError("not-found", "Submission not found");
     }
 
     const submission = submissionDoc.data();
 
     await submissionRef.update({
       comments: admin.firestore.FieldValue.arrayUnion(comment),
-      commentsCount: admin.firestore.FieldValue.increment(1),
+      commentsCount: admin.firestore.FieldValue.increment(1)
     });
 
     await db.doc(`users/${userId}`).update({
-      totalComments: admin.firestore.FieldValue.increment(1),
+      totalComments: admin.firestore.FieldValue.increment(1)
     });
 
     if (userId !== submission.userId) {
-      await db.collection('notifications').add({
+      await db.collection("notifications").add({
         userId: submission.userId,
-        type: 'comment',
-        title: 'New Comment!',
-        message: `${userData.displayName || 'Someone'} commented on your submission`,
+        type: "comment",
+        title: "New Comment!",
+        message: `${
+          userData.displayName || "Someone"
+        } commented on your submission`,
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         relatedSubmissionId: submissionId,
-        relatedUserId: userId,
+        relatedUserId: userId
       });
     }
 
     const userTotalComments = (userData.totalComments || 0) + 1;
     if (userTotalComments >= 50) {
-      await checkAndAwardAchievement(userId, 'critic', { count: userTotalComments });
+      await checkAndAwardAchievement(userId, "critic", {
+        count: userTotalComments
+      });
     }
 
     return { success: true, comment };
   } catch (error) {
-    console.error('Error adding comment:', error);
-    throw new functions.https.HttpsError('internal', error.message, error);
+    console.error("Error adding comment:", error);
+    throw new functions.https.HttpsError("internal", error.message, error);
   }
 });
 
-exports.determineDailyWinner = onSchedule('0 1 * * *', { timeZone: 'UTC' }, async () => {
-  await determineDailyWinnerInternal();
-});
+exports.determineDailyWinner = exports.createDailyChallenge = onSchedule(
+  {
+    schedule: "0 1 * * *",
+    timeZone: "UTC"
+  },
+  async () => {
+    await determineDailyWinnerInternal();
+  }
+);
 
 exports.runDetermineDailyWinnerManual = onCall(async (request) => {
   return await determineDailyWinnerInternal(true);
