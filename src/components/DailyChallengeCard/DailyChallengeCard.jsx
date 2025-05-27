@@ -11,8 +11,10 @@ import {
   faRefresh,
   faUpload,
   faCheckCircle,
-  faExclamationCircle
+  faExclamationCircle,
+  faDownload
 } from "@fortawesome/free-solid-svg-icons";
+import { faTwitter, faFacebookF } from "@fortawesome/free-brands-svg-icons";
 import { useAuth } from "../../context/AuthContext";
 import GlowButton from "../GlowButton/GlowButton";
 import { useDailyChallenge } from "../../hooks/useDailyChallenge";
@@ -43,27 +45,31 @@ export default function DailyChallengeCard() {
     loading: submissionLoading,
     error: submissionError,
     userSubmission,
-    canSubmit
-  } = useSubmission(challenge?.id);
+    canSubmit,
+    fetchSubmission,
+    resetSubmission
+  } = useSubmission(challenge?.id, user?.uid);
 
-  // Fetch attempts when challenge changes
+  // Reset state and refetch data on user change
   useEffect(() => {
-    if (challenge?.id) {
+    if (!user) {
+      setPrompt("");
+      resetSubmission();
+    } else if (challenge?.id && user?.uid) {
       fetchAttemptsUsed(challenge.id);
+      fetchSubmission();
     }
-  }, [challenge?.id, fetchAttemptsUsed]);
+  }, [user, challenge?.id, fetchAttemptsUsed, fetchSubmission, resetSubmission]);
 
-  // Timer effect remains unchanged
+  // Timer effect
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date();
-
-      // Create tomorrow's date at 00:00:00 UTC
       const tomorrowUTC = new Date(
         Date.UTC(
           now.getUTCFullYear(),
           now.getUTCMonth(),
-          now.getUTCDate() + 1, // Tomorrow
+          now.getUTCDate() + 1,
           0,
           0,
           0,
@@ -72,7 +78,6 @@ export default function DailyChallengeCard() {
       );
 
       const diff = tomorrowUTC - now;
-
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -155,14 +160,41 @@ export default function DailyChallengeCard() {
         userPhotoURL: user.photoURL || null
       });
 
-      // Clear the current image after submission
       setPrompt("");
     } catch (error) {
       console.error("Failed to submit art:", error);
     }
   };
 
-  // Loading, error, no challenge states remain unchanged
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename || "artwork.png";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Failed to download image. Please try again.");
+    }
+  };
+
+  const handleShare = (platform, url, prompt) => {
+    const shareUrls = {
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+        `Check out my artwork for today's challenge! "${prompt}" ${url}`
+      )}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`
+    };
+
+    window.open(shareUrls[platform], "_blank", "noopener,noreferrer");
+  };
+
   if (loading) {
     return (
       <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-white/10 overflow-hidden max-w-4xl mx-auto mb-24">
@@ -258,11 +290,11 @@ export default function DailyChallengeCard() {
 
     let date;
     if (timestamp.toDate && typeof timestamp.toDate === "function") {
-      date = timestamp.toDate(); // Firestore Timestamp
+      date = timestamp.toDate();
     } else if (timestamp instanceof Date) {
-      date = timestamp; // Already a Date
+      date = timestamp;
     } else if (typeof timestamp === "string" || typeof timestamp === "number") {
-      date = new Date(timestamp); // ISO string or milliseconds
+      date = new Date(timestamp);
     } else {
       return "Invalid Date";
     }
@@ -369,36 +401,83 @@ export default function DailyChallengeCard() {
         )}
 
         <div className="space-y-8">
-          {/* Show existing submission if user has already submitted */}
+          {/* Enhanced Submission Display */}
           {userSubmission && (
-            <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-6">
+            <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 border border-green-500/30 rounded-xl p-8 flex flex-col items-center">
               <div className="flex items-center mb-4">
                 <FontAwesomeIcon
                   icon={faCheckCircle}
-                  className="text-green-400 mr-2"
+                  className="text-green-400 mr-2 text-2xl"
                 />
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-xl font-semibold text-white">
                   Your Submission
                 </h3>
               </div>
-              <p className="text-gray-300 mb-4">"{userSubmission.prompt}"</p>
-              <img
-                src={userSubmission.imageUrl}
-                alt="Your submission"
-                className="rounded-lg max-w-full max-h-64 border border-white/20 shadow-lg"
-              />
-              <p className="text-gray-400 text-sm mt-2">
-                Submitted at{" "}
-                {userSubmission.createdAt
-                  ? userSubmission.createdAt.toDate
-                    ? userSubmission.createdAt.toDate().toLocaleString()
-                    : new Date(userSubmission.createdAt).toLocaleString()
-                  : "Unknown"}
-              </p>
+              <div className="w-full max-w-md">
+                <p className="text-gray-200 italic mb-4 text-center">
+                  "{userSubmission.prompt}"
+                </p>
+                <div className="relative">
+                  <img
+                    src={userSubmission.imageUrl}
+                    alt="Your submission"
+                    className="rounded-lg w-full max-h-96 object-contain border border-white/20 shadow-xl"
+                  />
+                  <div className="absolute top-4 right-4 flex gap-2">
+                    <button
+                      onClick={() =>
+                        handleDownload(
+                          userSubmission.imageUrl,
+                          `challenge-submission-${challenge.id}.png`
+                        )
+                      }
+                      className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
+                      title="Download Image"
+                    >
+                      <FontAwesomeIcon
+                        icon={faDownload}
+                        className="text-white text-sm"
+                      />
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleShare("twitter", userSubmission.imageUrl, userSubmission.prompt)
+                      }
+                      className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
+                      title="Share on Twitter"
+                    >
+                      <FontAwesomeIcon
+                        icon={faTwitter}
+                        className="text-white text-sm"
+                      />
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleShare("facebook", userSubmission.imageUrl, userSubmission.prompt)
+                      }
+                      className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
+                      title="Share on Facebook"
+                    >
+                      <FontAwesomeIcon
+                        icon={faFacebookF}
+                        className="text-white text-sm"
+                      />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-gray-400 text-sm mt-4 text-center">
+                  Submitted at{" "}
+                  {userSubmission.createdAt
+                    ? userSubmission.createdAt.toDate
+                      ? userSubmission.createdAt.toDate().toLocaleString()
+                      : new Date(userSubmission.createdAt).toLocaleString()
+                    : "Unknown"}
+                </p>
+              </div>
             </div>
           )}
 
-          {/* Generation Interface - only show if user hasn't submitted */}
+          {/* Generation Interface */}
           {user && !userSubmission && (
             <div className="relative bg-black/30 backdrop-blur rounded-xl p-6 border border-white/10">
               <label
@@ -472,13 +551,50 @@ export default function DailyChallengeCard() {
               )}
 
               {imageUrl && (
-                <div className="mt-6">
-                  <div className="flex justify-center mb-4">
+                <div className="mt-6 flex flex-col items-center">
+                  <div className="relative mb-4 w-full max-w-md">
                     <img
                       src={imageUrl}
                       alt="Generated art"
-                      className="rounded-lg max-w-full max-h-96 border border-white/20 shadow-lg"
+                      className="rounded-lg w-full max-h-96 object-contain border border-white/20 shadow-xl"
                     />
+                    <div className="absolute top-4 right-4 flex gap-2">
+                      <button
+                        onClick={() =>
+                          handleDownload(
+                            imageUrl,
+                            `generated-art-${challenge.id}.png`
+                          )
+                        }
+                        className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
+                        title="Download Image"
+                      >
+                        <FontAwesomeIcon
+                          icon={faDownload}
+                          className="text-white text-sm"
+                        />
+                      </button>
+                      <button
+                        onClick={() => handleShare("twitter", imageUrl, prompt)}
+                        className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
+                        title="Share on Twitter"
+                      >
+                        <FontAwesomeIcon
+                          icon={faTwitter}
+                          className="text-white text-sm"
+                        />
+                      </button>
+                      <button
+                        onClick={() => handleShare("facebook", imageUrl, prompt)}
+                        className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
+                        title="Share on Facebook"
+                      >
+                        <FontAwesomeIcon
+                          icon={faFacebookF}
+                          className="text-white text-sm"
+                        />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex justify-center">
@@ -508,7 +624,6 @@ export default function DailyChallengeCard() {
             </div>
           )}
 
-          {/* Show sign-in prompt if user is not authenticated */}
           {!user && (
             <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6 text-center">
               <FontAwesomeIcon

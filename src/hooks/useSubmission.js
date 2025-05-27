@@ -21,29 +21,42 @@ export function useSubmission(challengeId) {
   const [userSubmission, setUserSubmission] = useState(null);
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (!user || !challengeId) return;
+  const fetchSubmission = useCallback(async () => {
+    if (!user || !challengeId) {
+      setUserSubmission(null);
+      return;
+    }
 
-    const fetchUserSubmission = async () => {
-      try {
-        const submissionsQuery = query(
-          collection(db, 'submissions'),
-          where('challengeId', '==', challengeId),
-          where('userId', '==', user.uid)
-        );
-        const submissionSnapshot = await getDocs(submissionsQuery);
-        
-        if (!submissionSnapshot.empty) {
-          setUserSubmission(submissionSnapshot.docs[0].data());
-        }
-      } catch (err) {
-        console.error('Error fetching user submission data:', err);
-        setError(err.message);
+    try {
+      setLoading(true);
+      const submissionsQuery = query(
+        collection(db, 'submissions'),
+        where('challengeId', '==', challengeId),
+        where('userId', '==', user.uid)
+      );
+      const submissionSnapshot = await getDocs(submissionsQuery);
+      
+      if (!submissionSnapshot.empty) {
+        setUserSubmission(submissionSnapshot.docs[0].data());
+      } else {
+        setUserSubmission(null);
       }
-    };
-
-    fetchUserSubmission();
+    } catch (err) {
+      console.error('Error fetching user submission data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [user, challengeId]);
+
+  const resetSubmission = useCallback(() => {
+    setUserSubmission(null);
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    fetchSubmission();
+  }, [fetchSubmission]);
 
   const uploadImageToFirebase = useCallback(async (imageUrl) => {
     try {
@@ -91,7 +104,6 @@ export function useSubmission(challengeId) {
 
       const submissionRef = await addDoc(collection(db, 'submissions'), submissionData);
 
-      // Use setDoc with merge: true here to create or update the challenge doc safely
       const challengeRef = doc(db, 'challenges', challengeId);
       await setDoc(challengeRef, {
         submissionsCount: increment(1),
@@ -200,6 +212,8 @@ export function useSubmission(challengeId) {
     loading,
     error,
     userSubmission,
-    canSubmit
+    canSubmit,
+    fetchSubmission,
+    resetSubmission
   };
 }
