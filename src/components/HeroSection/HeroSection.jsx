@@ -10,7 +10,7 @@ export default function HeroSection() {
     <section className="pt-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="text-center mb-16">
         <h1 className="text-5xl md:text-7xl font-extrabold mb-4 hero-gradient">
-          Daily AI Art Challenge
+          Art Spark Daily
         </h1>
         <p className="text-xl text-gray-300 max-w-3xl mx-auto">
           Create, share, and connect through AI-generated art with daily creative prompts
