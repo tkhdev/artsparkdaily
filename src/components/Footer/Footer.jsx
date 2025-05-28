@@ -14,7 +14,7 @@ function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
             <h3 className="text-xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
-              Daily AI Art
+              Art Spark Daily
             </h3>
             <p className="text-gray-400">
               Create, share, and connect through AI-generated art with daily
@@ -69,7 +69,7 @@ function Footer() {
           </div>
         </div>
         <div className="border-t border-white/10 mt-12 pt-8 text-center text-gray-400 text-sm">
-          <p>&copy; 2025 Daily AI Art Challenge. All rights reserved.</p>
+          <p>&copy; 2025 Art Spark Daily. All rights reserved.</p>
         </div>
       </div>
     </footer>

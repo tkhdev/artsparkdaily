@@ -10,6 +10,7 @@ import UserProfile from "./pages/UserProfile/UserProfile";
 import Dev from "./pages/Dev/Dev";
 import Leaderboard from "./pages/Leaderboard/Leaderboard";
 import SubmissionDetail from "./pages/Submission/Submission";
+import Notifications from "./pages/Notifications/Notifications";
 
 function App() {
   useEffect(() => {
@@ -27,6 +28,7 @@ function App() {
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/dev" element={<Dev />} />
             <Route path="/profile/:uid?" element={<UserProfile />} />
+            <Route path="/notifications" element={<Notifications />} />
             <Route
               path="/submission/:submissionId"
               element={<SubmissionDetail />}

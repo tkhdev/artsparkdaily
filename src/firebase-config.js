@@ -7,7 +7,9 @@ import {
   limit,
   orderBy,
   query,
-  where
+  where,
+  doc,
+  updateDoc
 } from "firebase/firestore";
 import {
   getStorage,
@@ -62,5 +64,7 @@ export {
   limit,
   orderBy,
   query,
-  where
+  where,
+  doc,
+  updateDoc
 };
