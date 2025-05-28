@@ -12,9 +12,17 @@ import {
   faSort,
   faCalendarAlt,
   faImage,
-  faStar
+  faStar,
+  faShareAlt
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
+import {
+  faTwitter,
+  faFacebookF,
+  faPinterestP,
+  faRedditAlien,
+  faTumblr
+} from "@fortawesome/free-brands-svg-icons";
 import { useGalleryData } from "../../hooks/useGalleryData";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
@@ -53,19 +61,19 @@ export default function Gallery() {
   const [likeLoading, setLikeLoading] = useState({});
   // Track which submission is currently animating like
   const [animatingLikes, setAnimatingLikes] = useState({});
-
   // Comments state
   const [expandedComments, setExpandedComments] = useState({});
   const [newComments, setNewComments] = useState({});
   const [commentLoading, setCommentLoading] = useState({});
   const [submissionComments, setSubmissionComments] = useState({});
-
   // Reference to comments containers for scrolling
   const commentsRefs = useRef({});
-
   // Winner tracking state
   const [winners, setWinners] = useState({});
   const [winnersLoading, setWinnersLoading] = useState(true);
+  // Share menu state
+  const [shareMenuOpen, setShareMenuOpen] = useState({});
+  const shareMenuRefs = useRef({});
 
   // Fetch daily winners
   useEffect(() => {
@@ -114,6 +122,23 @@ export default function Gallery() {
     setLikeCounts(updatedCounts);
     setSubmissionComments(updatedComments);
   }, [submissions, user]);
+
+  // Close share menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      Object.keys(shareMenuRefs.current).forEach((submissionId) => {
+        if (
+          shareMenuRefs.current[submissionId] &&
+          !shareMenuRefs.current[submissionId].contains(event.target)
+        ) {
+          setShareMenuOpen((prev) => ({ ...prev, [submissionId]: false }));
+        }
+      });
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Helper function to check if a submission is a winner
   const isWinner = (submissionId) => {
@@ -287,6 +312,69 @@ export default function Gallery() {
     }
   };
 
+  const handleShare = (platform, submissionId, imageUrl, prompt) => {
+    const shareText = `Check out this artwork from the gallery! "${prompt}"`;
+    const shareUrls = {
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+        shareText
+      )}&url=${encodeURIComponent(imageUrl)}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+        imageUrl
+      )}`,
+      pinterest: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(
+        imageUrl
+      )}&media=${encodeURIComponent(imageUrl)}&description=${encodeURIComponent(
+        shareText
+      )}`,
+      reddit: `https://reddit.com/submit?url=${encodeURIComponent(
+        imageUrl
+      )}&title=${encodeURIComponent(shareText)}`,
+      tumblr: `https://www.tumblr.com/widgets/share/tool?canonicalUrl=${encodeURIComponent(
+        imageUrl
+      )}&caption=${encodeURIComponent(
+        shareText
+      )}&posttype=photo&content=${encodeURIComponent(imageUrl)}`
+    };
+
+    window.open(shareUrls[platform], "_blank", "noopener,noreferrer");
+    setShareMenuOpen((prev) => ({ ...prev, [submissionId]: false }));
+  };
+
+  const toggleShareMenu = (submissionId) => {
+    setShareMenuOpen((prev) => ({
+      ...prev,
+      [submissionId]: !prev[submissionId]
+    }));
+  };
+
+  const shareOptions = [
+    {
+      platform: "twitter",
+      icon: faTwitter,
+      label: "Twitter",
+      action: handleShare
+    },
+    {
+      platform: "facebook",
+      icon: faFacebookF,
+      label: "Facebook",
+      action: handleShare
+    },
+    {
+      platform: "pinterest",
+      icon: faPinterestP,
+      label: "Pinterest",
+      action: handleShare
+    },
+    {
+      platform: "reddit",
+      icon: faRedditAlien,
+      label: "Reddit",
+      action: handleShare
+    },
+    { platform: "tumblr", icon: faTumblr, label: "Tumblr", action: handleShare }
+  ];
+
   const formatCommentDate = (timestamp) => {
     if (!timestamp) return "";
 
@@ -450,8 +538,8 @@ export default function Gallery() {
               </header>
 
               {/* Image */}
-              <Link to={`/submission/${submission.id}`}>
-                <div className="relative mx-4 mb-4 rounded-xl overflow-hidden group">
+              <div className="relative mx-4 mb-4 rounded-xl overflow-hidden group">
+                <Link to={`/submission/${submission.id}`}>
                   <img
                     src={submission.imageUrl}
                     alt={submission.prompt}
@@ -462,8 +550,49 @@ export default function Gallery() {
                   {submissionIsWinner && (
                     <div className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 via-transparent to-transparent" />
                   )}
+                </Link>
+                <div
+                  className="absolute top-4 right-4"
+                  ref={(el) => (shareMenuRefs.current[submission.id] = el)}
+                >
+                  <button
+                    onClick={() => toggleShareMenu(submission.id)}
+                    className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
+                    title="Share"
+                    aria-haspopup="true"
+                    aria-expanded={shareMenuOpen[submission.id] || false}
+                  >
+                    <FontAwesomeIcon
+                      icon={faShareAlt}
+                      className="text-white text-sm"
+                    />
+                  </button>
+                  {shareMenuOpen[submission.id] && (
+                    <div className="absolute right-0 mt-2 w-48 bg-gray-900/95 backdrop-blur-sm border border-white/10 rounded-lg shadow-xl z-50">
+                      {shareOptions.map((option) => (
+                        <button
+                          key={option.platform}
+                          onClick={() =>
+                            option.action(
+                              option.platform,
+                              submission.id,
+                              submission.imageUrl,
+                              submission.prompt
+                            )
+                          }
+                          className="w-full flex items-center px-4 py-2 text-sm text-gray-200 hover:bg-purple-500/20 transition-colors"
+                        >
+                          <FontAwesomeIcon
+                            icon={option.icon}
+                            className="mr-2 text-white"
+                          />
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </Link>
+              </div>
 
               {/* Footer */}
               <footer className="p-4 pt-0">

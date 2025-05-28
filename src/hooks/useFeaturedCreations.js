@@ -21,6 +21,7 @@ export function useFeaturedCreations(limitCount = 6) {
           const d = doc.data();
           return {
             ...d,
+            id: doc.id,
             user: d.userDisplayName || "Unknown",
             userAvatar: d.userPhotoURL || "https://via.placeholder.com/200",
             description: d.description || "",
