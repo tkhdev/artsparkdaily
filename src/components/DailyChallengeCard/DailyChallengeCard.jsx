@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faMagic,
@@ -12,19 +12,31 @@ import {
   faUpload,
   faCheckCircle,
   faExclamationCircle,
-  faDownload
+  faDownload,
+  faShareAlt
 } from "@fortawesome/free-solid-svg-icons";
-import { faTwitter, faFacebookF } from "@fortawesome/free-brands-svg-icons";
+import {
+  faTwitter,
+  faFacebookF,
+  faPinterestP,
+  faLinkedinIn,
+  faRedditAlien,
+  faTumblr
+} from "@fortawesome/free-brands-svg-icons";
 import { useAuth } from "../../context/AuthContext";
 import GlowButton from "../GlowButton/GlowButton";
 import { useDailyChallenge } from "../../hooks/useDailyChallenge";
 import usePollinationsImage from "../../hooks/usePollinationsImage";
 import { useSubmission } from "../../hooks/useSubmission";
+import { getStorage, ref, getDownloadURL } from "firebase/storage";
 
 export default function DailyChallengeCard() {
   const { challenge, loading, error } = useDailyChallenge();
   const [prompt, setPrompt] = useState("");
   const [timeRemaining, setTimeRemaining] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
+  const shareMenuRef = useRef(null);
   const { user, profile } = useAuth();
 
   // Use the Pollinations hook (now handles attempts tracking)
@@ -59,7 +71,13 @@ export default function DailyChallengeCard() {
       fetchAttemptsUsed(challenge.id);
       fetchSubmission();
     }
-  }, [user, challenge?.id, fetchAttemptsUsed, fetchSubmission, resetSubmission]);
+  }, [
+    user,
+    challenge?.id,
+    fetchAttemptsUsed,
+    fetchSubmission,
+    resetSubmission
+  ]);
 
   // Timer effect
   useEffect(() => {
@@ -94,11 +112,29 @@ export default function DailyChallengeCard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Close share menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        shareMenuRef.current &&
+        !shareMenuRef.current.contains(event.target)
+      ) {
+        setIsShareMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleCreateChallenge = async () => {
+    setCreating(true);
     try {
       await createTodaysChallenge();
     } catch (err) {
       console.error("Failed to create challenge:", err);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -166,10 +202,15 @@ export default function DailyChallengeCard() {
     }
   };
 
-  const handleDownload = async (url, filename) => {
+  const handleDownload = async (path, filename) => {
     try {
+      const storage = getStorage();
+      const storageRef = ref(storage, path); // example: 'images/your-file.jpg'
+
+      const url = await getDownloadURL(storageRef);
       const response = await fetch(url);
       const blob = await response.blob();
+
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = blobUrl;
@@ -184,15 +225,39 @@ export default function DailyChallengeCard() {
     }
   };
 
-  const handleShare = (platform, url, prompt) => {
+  const handleShare = (platform, url) => {
+    const shareText = `Check out my artwork for today's challenge! "${challenge.title}"`;
     const shareUrls = {
       twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-        `Check out my artwork for today's challenge! "${prompt}" ${url}`
+        shareText
+      )}&url=${encodeURIComponent(url)}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+        url
       )}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`
+      pinterest: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(
+        url
+      )}&media=${encodeURIComponent(url)}&description=${encodeURIComponent(
+        shareText
+      )}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
+        url
+      )}`,
+      reddit: `https://reddit.com/submit?url=${encodeURIComponent(
+        url
+      )}&title=${encodeURIComponent(shareText)}`,
+      tumblr: `https://www.tumblr.com/widgets/share/tool?canonicalUrl=${encodeURIComponent(
+        url
+      )}&caption=${encodeURIComponent(
+        shareText
+      )}&posttype=photo&content=${encodeURIComponent(url)}`
     };
 
     window.open(shareUrls[platform], "_blank", "noopener,noreferrer");
+    setIsShareMenuOpen(false);
+  };
+
+  const toggleShareMenu = () => {
+    setIsShareMenuOpen(!isShareMenuOpen);
   };
 
   if (loading) {
@@ -322,6 +387,46 @@ export default function DailyChallengeCard() {
     }
   };
 
+  const shareOptions = [
+    {
+      platform: "download",
+      icon: faDownload,
+      label: "Download",
+      action: handleDownload
+    },
+    {
+      platform: "twitter",
+      icon: faTwitter,
+      label: "Twitter",
+      action: handleShare
+    },
+    {
+      platform: "facebook",
+      icon: faFacebookF,
+      label: "Facebook",
+      action: handleShare
+    },
+    {
+      platform: "pinterest",
+      icon: faPinterestP,
+      label: "Pinterest",
+      action: handleShare
+    },
+    {
+      platform: "linkedin",
+      icon: faLinkedinIn,
+      label: "LinkedIn",
+      action: handleShare
+    },
+    {
+      platform: "reddit",
+      icon: faRedditAlien,
+      label: "Reddit",
+      action: handleShare
+    },
+    { platform: "tumblr", icon: faTumblr, label: "Tumblr", action: handleShare }
+  ];
+
   return (
     <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-white/10 overflow-hidden max-w-4xl mx-auto mb-24">
       <div className="px-6 py-8 sm:p-10">
@@ -423,46 +528,47 @@ export default function DailyChallengeCard() {
                     alt="Your submission"
                     className="rounded-lg w-full max-h-96 object-contain border border-white/20 shadow-xl"
                   />
-                  <div className="absolute top-4 right-4 flex gap-2">
+                  <div className="absolute top-4 right-4" ref={shareMenuRef}>
                     <button
-                      onClick={() =>
-                        handleDownload(
-                          userSubmission.imageUrl,
-                          `challenge-submission-${challenge.id}.png`
-                        )
-                      }
+                      onClick={toggleShareMenu}
                       className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
-                      title="Download Image"
+                      title="Share or Download"
+                      aria-haspopup="true"
+                      aria-expanded={isShareMenuOpen}
                     >
                       <FontAwesomeIcon
-                        icon={faDownload}
+                        icon={faShareAlt}
                         className="text-white text-sm"
                       />
                     </button>
-                    <button
-                      onClick={() =>
-                        handleShare("twitter", userSubmission.imageUrl, userSubmission.prompt)
-                      }
-                      className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
-                      title="Share on Twitter"
-                    >
-                      <FontAwesomeIcon
-                        icon={faTwitter}
-                        className="text-white text-sm"
-                      />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleShare("facebook", userSubmission.imageUrl, userSubmission.prompt)
-                      }
-                      className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
-                      title="Share on Facebook"
-                    >
-                      <FontAwesomeIcon
-                        icon={faFacebookF}
-                        className="text-white text-sm"
-                      />
-                    </button>
+                    {isShareMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-48 bg-gray-900/95 backdrop-blur-sm border border-white/10 rounded-lg shadow-xl z-10">
+                        {shareOptions.map((option) => (
+                          <button
+                            key={option.platform}
+                            onClick={() =>
+                              option.platform === "download"
+                                ? option.action(
+                                    userSubmission.imageUrl,
+                                    `challenge-submission-${challenge.id}.png`
+                                  )
+                                : option.action(
+                                    option.platform,
+                                    userSubmission.imageUrl,
+                                    userSubmission.prompt
+                                  )
+                            }
+                            className="w-full flex items-center px-4 py-2 text-sm text-gray-200 hover:bg-purple-500/20 transition-colors"
+                          >
+                            <FontAwesomeIcon
+                              icon={option.icon}
+                              className="mr-2 text-white"
+                            />
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <p className="text-gray-400 text-sm mt-4 text-center">
@@ -558,42 +664,47 @@ export default function DailyChallengeCard() {
                       alt="Generated art"
                       className="rounded-lg w-full max-h-96 object-contain border border-white/20 shadow-xl"
                     />
-                    <div className="absolute top-4 right-4 flex gap-2">
+                    <div className="absolute top-4 right-4" ref={shareMenuRef}>
                       <button
-                        onClick={() =>
-                          handleDownload(
-                            imageUrl,
-                            `generated-art-${challenge.id}.png`
-                          )
-                        }
+                        onClick={toggleShareMenu}
                         className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
-                        title="Download Image"
+                        title="Share or Download"
+                        aria-haspopup="true"
+                        aria-expanded={isShareMenuOpen}
                       >
                         <FontAwesomeIcon
-                          icon={faDownload}
+                          icon={faShareAlt}
                           className="text-white text-sm"
                         />
                       </button>
-                      <button
-                        onClick={() => handleShare("twitter", imageUrl, prompt)}
-                        className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
-                        title="Share on Twitter"
-                      >
-                        <FontAwesomeIcon
-                          icon={faTwitter}
-                          className="text-white text-sm"
-                        />
-                      </button>
-                      <button
-                        onClick={() => handleShare("facebook", imageUrl, prompt)}
-                        className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
-                        title="Share on Facebook"
-                      >
-                        <FontAwesomeIcon
-                          icon={faFacebookF}
-                          className="text-white text-sm"
-                        />
-                      </button>
+                      {isShareMenuOpen && (
+                        <div className="absolute right-0 mt-2 w-48 bg-gray-900/95 backdrop-blur-sm border border-white/10 rounded-lg shadow-xl z-10">
+                          {shareOptions.map((option) => (
+                            <button
+                              key={option.platform}
+                              onClick={() =>
+                                option.platform === "download"
+                                  ? option.action(
+                                      imageUrl,
+                                      `generated-art-${challenge.id}.png`
+                                    )
+                                  : option.action(
+                                      option.platform,
+                                      imageUrl,
+                                      prompt
+                                    )
+                              }
+                              className="w-full flex items-center px-4 py-2 text-sm text-gray-200 hover:bg-purple-500/20 transition-colors"
+                            >
+                              <FontAwesomeIcon
+                                icon={option.icon}
+                                className="mr-2 text-white"
+                              />
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
