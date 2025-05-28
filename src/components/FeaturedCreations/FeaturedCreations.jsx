@@ -28,19 +28,22 @@ export default function FeaturedCreations() {
                 className="h-[300px] bg-gray-800 rounded-xl animate-pulse"
               />
             ))
-          : creations.map((c, idx) => (
-              <ArtCard
-                key={idx}
-                likes={c.likesCount}
-                user={c.user}
-                description={c.description}
-                userAvatar={c.userAvatar}
-                imageSrc={c.imageSrc}
-                hoursAgo={Math.floor(
-                  (Date.now() - c.createdAt.getTime()) / 3600000
-                )}
-              />
-            ))}
+          : creations.map((c, idx) => {
+              return (
+                <ArtCard
+                  key={idx}
+                  submissionId={c.id}
+                  likes={c.likesCount}
+                  user={c.user}
+                  description={c.description}
+                  userAvatar={c.userAvatar}
+                  imageSrc={c.imageSrc}
+                  hoursAgo={Math.floor(
+                    (Date.now() - c.createdAt.getTime()) / 3600000
+                  )}
+                />
+              );
+            })}
       </div>
     </section>
   );

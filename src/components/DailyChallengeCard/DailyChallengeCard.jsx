@@ -12,14 +12,12 @@ import {
   faUpload,
   faCheckCircle,
   faExclamationCircle,
-  faDownload,
   faShareAlt
 } from "@fortawesome/free-solid-svg-icons";
 import {
   faTwitter,
   faFacebookF,
   faPinterestP,
-  faLinkedinIn,
   faRedditAlien,
   faTumblr
 } from "@fortawesome/free-brands-svg-icons";
@@ -28,7 +26,6 @@ import GlowButton from "../GlowButton/GlowButton";
 import { useDailyChallenge } from "../../hooks/useDailyChallenge";
 import usePollinationsImage from "../../hooks/usePollinationsImage";
 import { useSubmission } from "../../hooks/useSubmission";
-import { getStorage, ref, getDownloadURL } from "firebase/storage";
 
 export default function DailyChallengeCard() {
   const { challenge, loading, error } = useDailyChallenge();
@@ -202,29 +199,6 @@ export default function DailyChallengeCard() {
     }
   };
 
-  const handleDownload = async (path, filename) => {
-    try {
-      const storage = getStorage();
-      const storageRef = ref(storage, path); // example: 'images/your-file.jpg'
-
-      const url = await getDownloadURL(storageRef);
-      const response = await fetch(url);
-      const blob = await response.blob();
-
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename || "artwork.png";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      console.error("Download failed:", error);
-      alert("Failed to download image. Please try again.");
-    }
-  };
-
   const handleShare = (platform, url) => {
     const shareText = `Check out my artwork for today's challenge! "${challenge.title}"`;
     const shareUrls = {
@@ -238,9 +212,6 @@ export default function DailyChallengeCard() {
         url
       )}&media=${encodeURIComponent(url)}&description=${encodeURIComponent(
         shareText
-      )}`,
-      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
-        url
       )}`,
       reddit: `https://reddit.com/submit?url=${encodeURIComponent(
         url
@@ -389,12 +360,6 @@ export default function DailyChallengeCard() {
 
   const shareOptions = [
     {
-      platform: "download",
-      icon: faDownload,
-      label: "Download",
-      action: handleDownload
-    },
-    {
       platform: "twitter",
       icon: faTwitter,
       label: "Twitter",
@@ -410,12 +375,6 @@ export default function DailyChallengeCard() {
       platform: "pinterest",
       icon: faPinterestP,
       label: "Pinterest",
-      action: handleShare
-    },
-    {
-      platform: "linkedin",
-      icon: faLinkedinIn,
-      label: "LinkedIn",
       action: handleShare
     },
     {
@@ -532,7 +491,7 @@ export default function DailyChallengeCard() {
                     <button
                       onClick={toggleShareMenu}
                       className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
-                      title="Share or Download"
+                      title="Share"
                       aria-haspopup="true"
                       aria-expanded={isShareMenuOpen}
                     >
@@ -547,16 +506,11 @@ export default function DailyChallengeCard() {
                           <button
                             key={option.platform}
                             onClick={() =>
-                              option.platform === "download"
-                                ? option.action(
-                                    userSubmission.imageUrl,
-                                    `challenge-submission-${challenge.id}.png`
-                                  )
-                                : option.action(
-                                    option.platform,
-                                    userSubmission.imageUrl,
-                                    userSubmission.prompt
-                                  )
+                              option.action(
+                                option.platform,
+                                userSubmission.imageUrl,
+                                userSubmission.prompt
+                              )
                             }
                             className="w-full flex items-center px-4 py-2 text-sm text-gray-200 hover:bg-purple-500/20 transition-colors"
                           >
@@ -668,7 +622,7 @@ export default function DailyChallengeCard() {
                       <button
                         onClick={toggleShareMenu}
                         className="bg-gray-800/80 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-700/80 transition-colors"
-                        title="Share or Download"
+                        title="Share"
                         aria-haspopup="true"
                         aria-expanded={isShareMenuOpen}
                       >
@@ -683,16 +637,7 @@ export default function DailyChallengeCard() {
                             <button
                               key={option.platform}
                               onClick={() =>
-                                option.platform === "download"
-                                  ? option.action(
-                                      imageUrl,
-                                      `generated-art-${challenge.id}.png`
-                                    )
-                                  : option.action(
-                                      option.platform,
-                                      imageUrl,
-                                      prompt
-                                    )
+                                option.action(option.platform, imageUrl, prompt)
                               }
                               className="w-full flex items-center px-4 py-2 text-sm text-gray-200 hover:bg-purple-500/20 transition-colors"
                             >
