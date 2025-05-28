@@ -2304,7 +2304,7 @@ exports.addSubmissionComment = onCall(async (request) => {
   }
 });
 
-exports.determineDailyWinner = exports.createDailyChallenge = onSchedule(
+exports.determineDailyWinner = onSchedule(
   {
     schedule: "0 1 * * *",
     timeZone: "UTC"
