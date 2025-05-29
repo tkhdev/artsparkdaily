@@ -28,6 +28,12 @@ self.addEventListener("fetch", (event) => {
 
   // Only handle image requests
   if (request.destination === "image") {
+    // Only cache HTTP and HTTPS requests (skip chrome-extension, data, etc.)
+    if (!request.url.startsWith('http://') && !request.url.startsWith('https://')) {
+      // Do nothing special, just let the request pass through normally
+      return;
+    }
+
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
         const cachedResponse = await cache.match(request);
@@ -35,7 +41,6 @@ self.addEventListener("fetch", (event) => {
           // Return cached image
           return cachedResponse;
         }
-        // Fetch from network
         try {
           const response = await fetch(request);
           // Cache the new image (if valid response)
@@ -44,7 +49,7 @@ self.addEventListener("fetch", (event) => {
             response.status === 200 &&
             response.type === "basic"
           ) {
-            cache.put(request, response.clone());
+            await cache.put(request, response.clone());
             // Trim cache if too big
             trimCache(cache);
           }
