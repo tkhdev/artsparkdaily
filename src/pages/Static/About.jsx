@@ -6,13 +6,12 @@ import {
   faPaintBrush,
   faArrowRight
 } from "@fortawesome/free-solid-svg-icons";
-import { Link } from "react-router-dom";
-import { useAuthActions } from "../../hooks/useAuthActions";
+import { Link, useNavigate } from "react-router-dom";
 import { useHeroStats } from "../../hooks/useHeroStats";
 
 const AboutPage = () => {
-  const { loginWithGoogle } = useAuthActions();
   const { stats, loading } = useHeroStats();
+  const navigate = useNavigate();
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 py-16 px-4">
@@ -139,7 +138,7 @@ const AboutPage = () => {
           </h3>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
-              onClick={loginWithGoogle}
+              onClick={() => navigate('/pricing')}
               className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-xl hover:shadow-pink-500/50 cursor-pointer"
               aria-label="Sign up for Art Spark Daily"
             >

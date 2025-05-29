@@ -17,6 +17,7 @@ import FAQPage from "./pages/Static/Faq";
 import TermsOfService from "./pages/Static/TermsOfServivce";
 import PrivacyPolicy from "./pages/Static/PrivacyPolicy";
 import ContactUs from "./pages/Static/Contact";
+import PricingPage from "./pages/Static/Pricing";
 
 function App() {
   useEffect(() => {
@@ -41,6 +42,7 @@ function App() {
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/contact" element={<ContactUs />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route
               path="/submission/:submissionId"
               element={<SubmissionDetail />}

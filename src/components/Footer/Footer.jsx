@@ -28,6 +28,7 @@ function Footer() {
               <li><Link to="/" className="text-gray-400 hover:text-white">Home</Link></li>
               <li><Link to="/gallery" className="text-gray-400 hover:text-white">Gallery</Link></li>
               <li><Link to="/leaderboard" className="text-gray-400 hover:text-white">Leaderboard</Link></li>
+              <li><Link to="/pricing" className="text-gray-400 hover:text-white">Pricing</Link></li>
             </ul>
           </div>
           <div>

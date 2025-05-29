@@ -84,7 +84,7 @@ function Header() {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-4">
-            {["/", "/gallery", "/leaderboard", ...(user ? ["/notifications"] : [])].map((path) => {
+            {["/", "/gallery", "/leaderboard", "/pricing", ...(user ? ["/notifications"] : [])].map((path) => {
               const label = path === "/" ? "Home" : path.replace("/", "").charAt(0).toUpperCase() + path.slice(2);
               return (
                 <NavLink
@@ -175,7 +175,7 @@ function Header() {
         {/* Mobile Nav Menu */}
         {mobileOpen && (
           <div className="md:hidden flex flex-col space-y-2 mt-2">
-            {["/", "/gallery", "/leaderboard", ...(user ? ["/notifications"] : [])].map((path) => {
+            {["/", "/gallery", "/leaderboard", "/pricing", ...(user ? ["/notifications"] : [])].map((path) => {
               const label = path === "/" ? "Home" : path.replace("/", "").charAt(0).toUpperCase() + path.slice(2);
               return (
                 <NavLink
