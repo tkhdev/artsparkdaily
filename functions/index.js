@@ -1844,6 +1844,28 @@ exports.createDailyChallenge = onSchedule(
   }
 );
 
+exports.sendContactMessage = onCall(async (req) => {
+  const { name, email, message } = req.data;
+
+  if (!name || !email || !message) {
+    throw new HttpsError("invalid-argument", "All fields are required.");
+  }
+
+  try {
+    const docRef = await db.collection("contactMessages").add({
+      name,
+      email,
+      message,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { success: true, messageId: docRef.id };
+  } catch (error) {
+    console.error("Error saving contact message:", error);
+    throw new HttpsError("internal", "Failed to send message.");
+  }
+});
+
 // Manual challenge creation (authenticated users only)
 exports.createDailyChallengeManual = onCall(
   {

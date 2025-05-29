@@ -11,6 +11,12 @@ import Dev from "./pages/Dev/Dev";
 import Leaderboard from "./pages/Leaderboard/Leaderboard";
 import SubmissionDetail from "./pages/Submission/Submission";
 import Notifications from "./pages/Notifications/Notifications";
+import AboutPage from "./pages/Static/About";
+import HowItWorks from "./pages/Static/HowItWorks";
+import FAQPage from "./pages/Static/Faq";
+import TermsOfService from "./pages/Static/TermsOfServivce";
+import PrivacyPolicy from "./pages/Static/PrivacyPolicy";
+import ContactUs from "./pages/Static/Contact";
 
 function App() {
   useEffect(() => {
@@ -29,6 +35,12 @@ function App() {
             <Route path="/dev" element={<Dev />} />
             <Route path="/profile/:uid?" element={<UserProfile />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/contact" element={<ContactUs />} />
             <Route
               path="/submission/:submissionId"
               element={<SubmissionDetail />}

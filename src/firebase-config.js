@@ -18,7 +18,7 @@ import {
   getDownloadURL,
   deleteObject
 } from "firebase/storage";
-import { getFunctions } from "firebase/functions";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -66,5 +66,6 @@ export {
   query,
   where,
   doc,
-  updateDoc
+  updateDoc,
+  httpsCallable
 };
