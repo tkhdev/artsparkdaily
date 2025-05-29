@@ -602,6 +602,46 @@ exports.addSubmissionComment = onCall(async (request) => {
   }
 });
 
+exports.cleanupGeneratedImages = onSchedule(
+  {
+    schedule: "0 0 * * *",
+    timeZone: "UTC"
+  },
+  async () => {
+    try {
+      logger.info("🧹 Starting cleanup of non-submitted generated images");
+
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+      const imagesQuery = await db
+        .collection("generatedImages")
+        .where("isSubmitted", "==", false)
+        .where("createdAt", "<", admin.firestore.Timestamp.fromDate(yesterday))
+        .get();
+
+      const deletePromises = imagesQuery.docs.map(async (doc) => {
+        const imageData = doc.data();
+        try {
+          const fileRef = storage.bucket().file(imageData.imageUrl.split('/o/')[1].split('?')[0]);
+          await fileRef.delete();
+          await doc.ref.delete();
+          logger.info(`Deleted non-submitted image: ${imageData.imageUrl}`);
+        } catch (err) {
+          logger.error(`Error deleting image ${imageData.imageUrl}:`, err);
+        }
+      });
+
+      await Promise.all(deletePromises);
+      logger.info("✅ Completed cleanup of non-submitted images");
+    } catch (error) {
+      logger.error("❌ Error in cleanupGeneratedImages:", error);
+      throw error;
+    }
+  }
+);
+
 exports.determineDailyWinner = onSchedule(
   {
     schedule: "0 1 * * *",

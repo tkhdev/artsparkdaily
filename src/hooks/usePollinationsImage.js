@@ -1,23 +1,45 @@
 import { useState, useCallback } from "react";
 import { httpsCallable } from "firebase/functions";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, addDoc } from "firebase/firestore";
+import { storage, ref, uploadBytes, getDownloadURL } from "../firebase-config";
 import { functions, db } from "../firebase-config";
 import { useAuth } from "../context/AuthContext";
 
-const trackGenerationAttempt = httpsCallable(
-  functions,
-  "trackGenerationAttempt"
-);
+const trackGenerationAttempt = httpsCallable(functions, "trackGenerationAttempt");
 
 export default function usePollinationsImage(challengeId) {
   const [imageUrl, setImageUrl] = useState(null);
+  const [generatedImages, setGeneratedImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [attemptsUsed, setAttemptsUsed] = useState(0);
   const [attemptsLoading, setAttemptsLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
-  // Fetch user's generation attempts for a specific challenge
+  const uploadImageToFirebase = useCallback(async (imageUrl, prompt) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const filename = `generatedImages/${challengeId}/${user.uid}_${Date.now()}.jpg`;
+      const storageRef = ref(storage, filename);
+      const snapshot = await uploadBytes(storageRef, blob);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      
+      const generatedImageDoc = await addDoc(collection(db, "generatedImages"), {
+        userId: user.uid,
+        challengeId,
+        prompt,
+        imageUrl: downloadURL,
+        createdAt: new Date(),
+        isSubmitted: false
+      });
+
+      return { id: generatedImageDoc.id, imageUrl: downloadURL, prompt };
+    } catch (error) {
+      throw new Error(`Failed to upload image: ${error.message}`);
+    }
+  }, [challengeId, user?.uid]);
+
   const fetchAttemptsUsed = useCallback(async () => {
     if (!user || !challengeId) {
       setAttemptsUsed(0);
@@ -47,7 +69,31 @@ export default function usePollinationsImage(challengeId) {
     }
   }, [user, challengeId]);
 
-  const generateImage = async (prompt) => {
+  const fetchGeneratedImages = useCallback(async () => {
+    if (!user || !challengeId) {
+      setGeneratedImages([]);
+      return;
+    }
+
+    try {
+      const imagesQuery = query(
+        collection(db, "generatedImages"),
+        where("userId", "==", user.uid),
+        where("challengeId", "==", challengeId)
+      );
+      const snapshot = await getDocs(imagesQuery);
+      const images = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setGeneratedImages(images);
+    } catch (err) {
+      console.error("Error fetching generated images:", err);
+      setError(err.message);
+    }
+  }, [user, challengeId]);
+
+  const generateImage = async (prompt, challengeId) => {
     if (!prompt || !challengeId) {
       setError("Prompt and challenge ID are required");
       return;
@@ -58,7 +104,8 @@ export default function usePollinationsImage(challengeId) {
       return;
     }
 
-    if (attemptsUsed >= 5) {
+    const maxAttempts = profile?.isPro ? 100 : 5;
+    if (attemptsUsed >= maxAttempts) {
       setError("You have used all your generation attempts for this challenge");
       return;
     }
@@ -68,7 +115,6 @@ export default function usePollinationsImage(challengeId) {
 
     try {
       await trackGenerationAttempt({ challengeId });
-
       setAttemptsUsed((prev) => prev + 1);
 
       const cleanPrompt = prompt.trim().replace(/[^\w\s,-]/g, "");
@@ -84,6 +130,8 @@ export default function usePollinationsImage(challengeId) {
         img.src = pollinationsUrl;
       });
 
+      const savedImage = await uploadImageToFirebase(pollinationsUrl, prompt);
+      setGeneratedImages((prev) => [...prev, savedImage]);
       setImageUrl(pollinationsUrl);
     } catch (err) {
       console.error("Error generating image:", err);
@@ -96,10 +144,14 @@ export default function usePollinationsImage(challengeId) {
         setError(err.message || "Failed to generate image");
       }
 
-      await fetchAttemptsUsed(); // Ensure sync after error
+      await fetchAttemptsUsed();
     } finally {
       setLoading(false);
     }
+  };
+
+  const selectImageForSubmission = (imageUrl) => {
+    setImageUrl(imageUrl);
   };
 
   const resetImage = () => {
@@ -107,10 +159,11 @@ export default function usePollinationsImage(challengeId) {
     setError(null);
   };
 
-  const canGenerate = user && attemptsUsed < 5;
+  const canGenerate = user && attemptsUsed < (profile?.isPro ? 100 : 5);
 
   return {
     imageUrl,
+    generatedImages,
     loading,
     error,
     attemptsUsed,
@@ -118,6 +171,8 @@ export default function usePollinationsImage(challengeId) {
     canGenerate,
     generateImage,
     resetImage,
-    fetchAttemptsUsed
+    fetchAttemptsUsed,
+    fetchGeneratedImages,
+    selectImageForSubmission
   };
 }

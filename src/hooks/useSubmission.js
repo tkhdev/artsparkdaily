@@ -37,7 +37,11 @@ export function useSubmission(challengeId) {
       const submissionSnapshot = await getDocs(submissionsQuery);
       
       if (!submissionSnapshot.empty) {
-        setUserSubmission(submissionSnapshot.docs[0].data());
+        const submissionData = submissionSnapshot.docs[0].data();
+        setUserSubmission({
+          ...submissionData,
+          id: submissionSnapshot.docs[0].id
+        });
       } else {
         setUserSubmission(null);
       }
@@ -58,20 +62,6 @@ export function useSubmission(challengeId) {
     fetchSubmission();
   }, [fetchSubmission]);
 
-  const uploadImageToFirebase = useCallback(async (imageUrl) => {
-    try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const filename = `submissions/${challengeId}/${user.uid}_${Date.now()}.jpg`;
-      const storageRef = ref(storage, filename);
-      const snapshot = await uploadBytes(storageRef, blob);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      return downloadURL;
-    } catch (error) {
-      throw new Error(`Failed to upload image: ${error.message}`);
-    }
-  }, [challengeId, user?.uid]);
-
   const submitArt = useCallback(async ({ challengeId, prompt, imageUrl, userId, userDisplayName, userPhotoURL }) => {
     if (!user) {
       throw new Error('User must be authenticated to submit');
@@ -84,7 +74,20 @@ export function useSubmission(challengeId) {
     setError(null);
 
     try {
-      const firebaseImageUrl = await uploadImageToFirebase(imageUrl);
+      // Find the generated image document
+      const imagesQuery = query(
+        collection(db, 'generatedImages'),
+        where('imageUrl', '==', imageUrl),
+        where('userId', '==', userId),
+        where('challengeId', '==', challengeId)
+      );
+      const imageSnapshot = await getDocs(imagesQuery);
+      
+      if (imageSnapshot.empty) {
+        throw new Error('Generated image not found');
+      }
+
+      const generatedImageId = imageSnapshot.docs[0].id;
 
       const submissionData = {
         challengeId,
@@ -92,9 +95,9 @@ export function useSubmission(challengeId) {
         userDisplayName,
         userPhotoURL,
         prompt: prompt.trim(),
-        imageUrl: firebaseImageUrl,
-        originalImageUrl: imageUrl,
-        createdAt: serverTimestamp(),
+        imageUrl,
+        generatedImageId,
+        createdAt: new Date(),
         likes: [],
         likesCount: 0,
         comments: [],
@@ -104,7 +107,12 @@ export function useSubmission(challengeId) {
 
       const submissionRef = await addDoc(collection(db, 'submissions'), submissionData);
 
-      const challengeRef = doc(db, 'challenges', challengeId);
+      // Mark the generated image as submitted
+      await updateDoc(doc(db, 'generatedImages', generatedImageId), {
+        isSubmitted: true
+      });
+
+      const challengeRef = doc(db, 'dailyChallenges', challengeId);
       await setDoc(challengeRef, {
         submissionsCount: increment(1),
         lastSubmissionAt: serverTimestamp()
@@ -133,7 +141,7 @@ export function useSubmission(challengeId) {
     } finally {
       setLoading(false);
     }
-  }, [uploadImageToFirebase, userSubmission, user]);
+  }, [userSubmission, user]);
 
   const checkAndAwardAchievements = useCallback(async (userId) => {
     try {
@@ -143,7 +151,7 @@ export function useSubmission(challengeId) {
 
       const achievements = [];
 
-      if (userData.totalSubmissions === 1) {
+      if ((userData.totalSubmissions || 0) + 1 === 1) {
         achievements.push({
           id: 'first_spark',
           name: 'First Spark',
