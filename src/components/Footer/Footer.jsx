@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTwitter,
@@ -24,34 +25,35 @@ function Footer() {
           <div>
             <h4 className="text-lg font-medium mb-4">Navigation</h4>
             <ul className="space-y-2">
-              <li><a href="#" className="text-gray-400 hover:text-white">Home</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-white">Gallery</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-white">Leaderboard</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-white">Community</a></li>
+              <li><Link to="/" className="text-gray-400 hover:text-white">Home</Link></li>
+              <li><Link to="/gallery" className="text-gray-400 hover:text-white">Gallery</Link></li>
+              <li><Link to="/leaderboard" className="text-gray-400 hover:text-white">Leaderboard</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="text-lg font-medium mb-4">Resources</h4>
             <ul className="space-y-2">
-              <li><a href="#" className="text-gray-400 hover:text-white">Help Center</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-white">Privacy Policy</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-white">Terms of Service</a></li>
-              <li><a href="#" className="text-gray-400 hover:text-white">FAQ</a></li>
+              <li><Link to="/about" className="text-gray-400 hover:text-white">About</Link></li>
+              <li><Link to="/how-it-works" className="text-gray-400 hover:text-white">How It Works?</Link></li>
+              <li><Link to="/privacy-policy" className="text-gray-400 hover:text-white">Privacy Policy</Link></li>
+              <li><Link to="/terms-of-service" className="text-gray-400 hover:text-white">Terms of Service</Link></li>
+              <li><Link to="/faq" className="text-gray-400 hover:text-white">FAQ</Link></li>
+              <li><Link to="/contact" className="text-gray-400 hover:text-white">Contact Us</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="text-lg font-medium mb-4">Connect</h4>
             <div className="flex space-x-4 mb-6">
-              <a href="#" className="text-gray-400 hover:text-white text-xl">
+              <a href="https://twitter.com" className="text-gray-400 hover:text-white text-xl" target="_blank" rel="noopener noreferrer">
                 <FontAwesomeIcon icon={faTwitter} />
               </a>
-              <a href="#" className="text-gray-400 hover:text-white text-xl">
+              <a href="https://instagram.com" className="text-gray-400 hover:text-white text-xl" target="_blank" rel="noopener noreferrer">
                 <FontAwesomeIcon icon={faInstagram} />
               </a>
-              <a href="#" className="text-gray-400 hover:text-white text-xl">
+              <a href="https://discord.com" className="text-gray-400 hover:text-white text-xl" target="_blank" rel="noopener noreferrer">
                 <FontAwesomeIcon icon={faDiscord} />
               </a>
-              <a href="#" className="text-gray-400 hover:text-white text-xl">
+              <a href="https://github.com" className="text-gray-400 hover:text-white text-xl" target="_blank" rel="noopener noreferrer">
                 <FontAwesomeIcon icon={faGithub} />
               </a>
             </div>
