@@ -6,13 +6,14 @@ import {
   faImage,
   faThumbsUp,
   faArrowRight,
-  faArrowDown,
+  faArrowDown
 } from "@fortawesome/free-solid-svg-icons";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuthActions } from "../../hooks/useAuthActions";
 
 const HowItWorks = () => {
   const { loginWithGoogle } = useAuthActions();
+  const navigate = useNavigate();
 
   const steps = [
     {
@@ -22,8 +23,8 @@ const HowItWorks = () => {
       description:
         "Create your free account using Google Sign-In to start your creative journey. It's quick, secure, and gives you access to all features.",
       action: "Sign Up Now",
-      onClick: loginWithGoogle,
-      gradient: "from-pink-500 to-purple-600",
+      onClick: () => navigate("/pricing"),
+      gradient: "from-pink-500 to-purple-600"
     },
     {
       number: "02",
@@ -33,7 +34,7 @@ const HowItWorks = () => {
         "A new AI-generated prompt is released every day at 00:00 UTC. Find it on the homepage or challenge page to spark your creativity.",
       action: "View Today's Prompt",
       link: "/",
-      gradient: "from-purple-500 to-cyan-600",
+      gradient: "from-purple-500 to-cyan-600"
     },
     {
       number: "03",
@@ -43,7 +44,7 @@ const HowItWorks = () => {
         "Use up to 5 free prompt attempts per challenge with the Pollinations API to create AI-generated art. Experiment, download, or share your creations.",
       action: null,
       link: null,
-      gradient: "from-cyan-500 to-pink-600",
+      gradient: "from-cyan-500 to-pink-600"
     },
     {
       number: "04",
@@ -53,8 +54,8 @@ const HowItWorks = () => {
         "Submit one final piece per challenge to the public gallery. Like, comment, and vote on others' submissions to help choose the daily winner!",
       action: "Visit the Gallery",
       link: "/gallery",
-      gradient: "from-green-500 to-purple-600",
-    },
+      gradient: "from-green-500 to-purple-600"
+    }
   ];
 
   return (
@@ -124,7 +125,7 @@ const HowItWorks = () => {
                       )}
                       {step.action && step.onClick && (
                         <button
-                          onClick={loginWithGoogle}
+                          onClick={step.onClick}
                           className={`inline-flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r ${step.gradient} hover:opacity-80 text-lg font-semibold transition-all duration-300 group/link cursor-pointer`}
                         >
                           {step.action}
@@ -172,17 +173,13 @@ const HowItWorks = () => {
               <div className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 mb-2">
                 Daily Fresh
               </div>
-              <div className="text-gray-400">
-                New prompts every 24 hours
-              </div>
+              <div className="text-gray-400">New prompts every 24 hours</div>
             </div>
             <div>
               <div className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-400 mb-2">
                 Community
               </div>
-              <div className="text-gray-400">
-                Connect with fellow artists
-              </div>
+              <div className="text-gray-400">Connect with fellow artists</div>
             </div>
           </div>
         </div>
@@ -194,7 +191,7 @@ const HowItWorks = () => {
           </h3>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
-              onClick={loginWithGoogle}
+              onClick={() => navigate("/pricing")}
               className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-xl hover:shadow-pink-500/50 cursor-pointer"
               aria-label="Start creating with Art Spark Daily"
             >
