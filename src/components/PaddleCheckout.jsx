@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { initPaddle } from "../utils/paddle";
 import { useOwnUserProfile } from "../hooks/useOwnUserProfile";
+import Confetti from "react-confetti";
 
 const PaddleCheckout = ({
   priceId,
@@ -17,8 +19,10 @@ const PaddleCheckout = ({
   const [paddle, setPaddle] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const checkoutTimeoutRef = useRef(null);
   const safetyTimeoutRef = useRef(null);
+  const paddleRef = useRef(null);
 
   useEffect(() => {
     const handlePaddleEvent = (event) => {
@@ -32,6 +36,10 @@ const PaddleCheckout = ({
 
       switch (event.name) {
         case "checkout.completed":
+          // Close the checkout immediately using paddleRef
+          if (paddleRef.current) {
+            paddleRef.current.Checkout.close();
+          }
           handleSuccess(type);
           break;
         case "checkout.closed":
@@ -55,6 +63,7 @@ const PaddleCheckout = ({
     const initialize = async () => {
       try {
         const paddleInstance = await initPaddle(handlePaddleEvent);
+        paddleRef.current = paddleInstance;
         setPaddle(paddleInstance);
       } catch (error) {
         console.error("Failed to initialize Paddle:", error);
@@ -68,7 +77,7 @@ const PaddleCheckout = ({
       clearTimeout(checkoutTimeoutRef.current);
       clearTimeout(safetyTimeoutRef.current);
     };
-  }, []);
+  }, []); // Removed paddle from dependencies
 
   const resetLoadingState = () => {
     setLoading(false);
@@ -82,9 +91,12 @@ const PaddleCheckout = ({
   const handleSuccess = (type) => {
     console.log("Payment success handler triggered");
     setSuccess(true);
+    setShowConfetti(true);
     refetchProfile();
     resetLoadingState();
     setTimeout(() => {
+      setShowConfetti(false);
+      setSuccess(false);
       navigate(
         type === "subscription"
           ? "/welcome?plan=pro&trial=true"
@@ -93,7 +105,7 @@ const PaddleCheckout = ({
           replace: true
         }
       );
-    }, 1000);
+    }, 5000);
   };
 
   const handleCheckout = async () => {
@@ -102,7 +114,7 @@ const PaddleCheckout = ({
       return;
     }
 
-    if (!paddle) {
+    if (!paddleRef.current) {
       setError("Payment system not ready. Please try again.");
       return;
     }
@@ -126,7 +138,7 @@ const PaddleCheckout = ({
     }, 30000);
 
     try {
-      const checkoutResult = paddle.Checkout.open({
+      const checkoutResult = paddleRef.current.Checkout.open({
         items: [{ priceId, quantity: 1 }],
         customer: { email: user.email },
         customData: { userId: user.uid, isAnnual: isAnnual.toString(), type },
@@ -169,12 +181,58 @@ const PaddleCheckout = ({
     handleCheckout();
   };
 
+  // Success overlay component rendered via portal
+  const SuccessOverlay = () => {
+    if (!success) return null;
+
+    return createPortal(
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        {showConfetti && (
+          <Confetti
+            width={window.innerWidth}
+            height={window.innerHeight}
+            recycle={false}
+            numberOfPieces={300}
+            gravity={0.2}
+            colors={["#ff00ff", "#00ff00", "#0000ff", "#ffff00", "#ff0000"]}
+          />
+        )}
+        <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm border border-pink-500/30 rounded-3xl p-8 text-center max-w-md w-full mx-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-8 h-8 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-4">
+            Purchase Successful!
+          </h3>
+          <p className="text-gray-300 mb-6">
+            {type === "subscription"
+              ? "Welcome to Art Spark Pro! Redirecting..."
+              : "Your add-on has been added! Redirecting..."}
+          </p>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
   if (error) {
     return (
       <div className="space-y-2">
         <button
           onClick={retryCheckout}
-          disabled={loading || !paddle}
+          disabled={loading || !paddleRef.current}
           className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? (
@@ -206,7 +264,7 @@ const PaddleCheckout = ({
     );
   }
 
-  if (!paddle) {
+  if (!paddleRef.current) {
     return (
       <button
         disabled
@@ -219,37 +277,23 @@ const PaddleCheckout = ({
   }
 
   return (
-    <button
-      onClick={handleCheckout}
-      disabled={loading || success}
-      className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2"
-    >
-      {success ? (
-        <>
-          <svg
-            className="w-5 h-5 text-green-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-          Success! Redirecting...
-        </>
-      ) : loading ? (
-        <>
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-          Processing...
-        </>
-      ) : (
-        ctaText
-      )}
-    </button>
+    <>
+      <button
+        onClick={handleCheckout}
+        disabled={loading || success}
+        className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {loading ? (
+          <>
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            Processing...
+          </>
+        ) : (
+          ctaText
+        )}
+      </button>
+      <SuccessOverlay />
+    </>
   );
 };
 
