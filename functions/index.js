@@ -33,17 +33,16 @@ function requireAuth(request, functionName) {
   return request.auth;
 }
 
-// Helper function to verify Paddle webhook signature
 function verifyPaddleSignature(rawBody, signature, secret) {
   try {
     const expectedSignature = crypto
       .createHmac("sha256", secret)
       .update(rawBody, "utf8")
-      .digest("hex");
+      .digest("base64"); // Use base64 instead of hex
 
     return crypto.timingSafeEqual(
-      Buffer.from(signature, "hex"),
-      Buffer.from(expectedSignature, "hex")
+      Buffer.from(signature, "base64"),
+      Buffer.from(expectedSignature, "base64")
     );
   } catch (error) {
     logger.error("Error verifying Paddle signature:", error);
