@@ -9,6 +9,7 @@ import {
   query,
   where,
   doc,
+  getDoc,
   updateDoc
 } from "firebase/firestore";
 import {
@@ -67,5 +68,6 @@ export {
   where,
   doc,
   updateDoc,
-  httpsCallable
+  httpsCallable,
+  getDoc
 };

@@ -26,8 +26,9 @@ export default function usePollinationsImage(challengeId) {
   const [error, setError] = useState(null);
   const [attemptsUsed, setAttemptsUsed] = useState(0);
   const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const [extraAttemptsUsed, setExtraAttemptsUsed] = useState(0);
   const { user } = useAuth();
-  const { profile } = useOwnUserProfile();
+  const { profile, refetchProfile } = useOwnUserProfile();
 
   const uploadImageToFirebase = useCallback(
     async (imageUrl, prompt) => {
@@ -64,6 +65,7 @@ export default function usePollinationsImage(challengeId) {
   const fetchAttemptsUsed = useCallback(async () => {
     if (!user || !challengeId) {
       setAttemptsUsed(0);
+      setExtraAttemptsUsed(0);
       return;
     }
 
@@ -77,14 +79,19 @@ export default function usePollinationsImage(challengeId) {
       const userChallengeDoc = await getDoc(userChallengeDocRef);
 
       if (userChallengeDoc.exists()) {
-        const attempts = userChallengeDoc.data().attemptsUsed || 0;
+        const data = userChallengeDoc.data();
+        const attempts = data.attemptsUsed || 0;
+        const extraUsed = data.extraAttemptsUsed || 0;
         setAttemptsUsed(attempts);
+        setExtraAttemptsUsed(extraUsed);
       } else {
         setAttemptsUsed(0);
+        setExtraAttemptsUsed(0);
       }
     } catch (err) {
       console.error("Error fetching generation attempts:", err);
       setAttemptsUsed(0);
+      setExtraAttemptsUsed(0);
     } finally {
       setAttemptsLoading(false);
     }
@@ -125,9 +132,14 @@ export default function usePollinationsImage(challengeId) {
       return;
     }
 
-    const maxAttempts = profile?.promptAttempts ? profile?.promptAttempts : 5;
-    if (attemptsUsed >= maxAttempts) {
-      setError("You have used all your generation attempts for this challenge");
+    // Calculate total available attempts
+    const baseAttempts = profile?.promptAttempts || 5;
+    const extraAttempts = profile?.extraPromptAttempts || 0;
+    const extraAttemptsUsed = profile?.extraPromptAttemptsUsed || 0;
+
+
+    if (attemptsUsed >= baseAttempts && extraAttempts - extraAttemptsUsed < 1) {
+      setError("You have used all your generation attempts for this challenge (including extra attempts)");
       return;
     }
 
@@ -135,8 +147,18 @@ export default function usePollinationsImage(challengeId) {
     setError(null);
 
     try {
-      await trackGenerationAttempt({ challengeId });
-      setAttemptsUsed((prev) => prev + 1);
+      // Track the attempt on the backend
+      const result = await trackGenerationAttempt({ challengeId });
+      
+      // Update local state based on backend response
+      if (result.data.success) {
+        setAttemptsUsed(result.data.attemptsUsed);
+        
+        // If user used an extra attempt, refresh their profile to get updated extraPromptAttempts
+        if (result.data.usedExtraAttempt) {
+          await refetchProfile(); // This will update the profile context with new extraPromptAttempts value
+        }
+      }
 
       const cleanPrompt = prompt.trim().replace(/[^\w\s,-]/g, "");
       const encodedPrompt = encodeURIComponent(cleanPrompt);
@@ -154,12 +176,13 @@ export default function usePollinationsImage(challengeId) {
       const savedImage = await uploadImageToFirebase(pollinationsUrl, prompt);
       setGeneratedImages((prev) => [...prev, savedImage]);
       setImageUrl(pollinationsUrl);
+      
     } catch (err) {
       console.error("Error generating image:", err);
 
       if (err.code === "functions/resource-exhausted") {
         setError(
-          "You have used all your generation attempts for this challenge"
+          "You have used all your generation attempts for this challenge (including extra attempts)"
         );
       } else if (err.code === "functions/unauthenticated") {
         setError("Please sign in to generate images");
@@ -167,6 +190,7 @@ export default function usePollinationsImage(challengeId) {
         setError(err.message || "Failed to generate image");
       }
 
+      // Refresh attempts count after error
       await fetchAttemptsUsed();
     } finally {
       setLoading(false);
@@ -182,9 +206,18 @@ export default function usePollinationsImage(challengeId) {
     setError(null);
   };
 
-  const canGenerate =
-    user &&
-    attemptsUsed < (profile?.promptAttempts ? profile?.promptAttempts : 5);
+  // Calculate if user can generate more images
+  const baseAttempts = profile?.promptAttempts || 5;
+  const extraAttempts = profile?.extraPromptAttempts || 0;
+  const totalAvailableAttempts = baseAttempts + extraAttempts - extraAttemptsUsed;
+  const canGenerate = user && attemptsUsed < totalAvailableAttempts;
+  console.log('canGenerate', attemptsUsed, totalAvailableAttempts);
+
+  // Helper to determine if next attempt will use extra attempts
+  const willUseExtraAttempt = attemptsUsed >= baseAttempts;
+  const remainingBaseAttempts = Math.max(0, baseAttempts - attemptsUsed);
+  const remainingExtraAttempts = extraAttempts;
+  const totalRemainingAttempts = totalAvailableAttempts - attemptsUsed;
 
   return {
     imageUrl,
@@ -193,11 +226,20 @@ export default function usePollinationsImage(challengeId) {
     error,
     attemptsUsed,
     attemptsLoading,
+    extraAttemptsUsed,
     canGenerate,
     generateImage,
     resetImage,
     fetchAttemptsUsed,
     fetchGeneratedImages,
-    selectImageForSubmission
+    selectImageForSubmission,
+    // Additional info for UI
+    baseAttempts,
+    extraAttempts,
+    totalAvailableAttempts,
+    willUseExtraAttempt,
+    remainingBaseAttempts,
+    remainingExtraAttempts,
+    totalRemainingAttempts
   };
 }

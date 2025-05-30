@@ -1,5 +1,5 @@
 import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase-config";
+import { db, getDoc } from "../firebase-config";
 import { useAuth } from "../context/AuthContext";
 
 export const useOwnUserProfile = () => {
@@ -12,8 +12,14 @@ export const useOwnUserProfile = () => {
     await updateDoc(userRef, updatedFields);
 
     // Update context
-    dispatch({ type: "SET_PROFILE", payload: { ...updatedFields } });
+    dispatch({ type: "SET_PROFILE", payload: { ...profile, ...updatedFields } });
   };
 
-  return { updateProfile, profile };
+  const refetchProfile = async () => {
+    const docRef = doc(db, "users", user.uid);
+    const docSnap = await getDoc(docRef);
+    dispatch({ type: "SET_PROFILE", payload: { ...docSnap.data() } });
+  };
+
+  return { updateProfile, profile, refetchProfile };
 };

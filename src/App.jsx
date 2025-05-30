@@ -18,6 +18,7 @@ import TermsOfService from "./pages/Static/TermsOfServivce";
 import PrivacyPolicy from "./pages/Static/PrivacyPolicy";
 import ContactUs from "./pages/Static/Contact";
 import PricingPage from "./pages/Static/Pricing";
+import ScrollToTop from "./components/ScrollToTop";
 
 function App() {
   useEffect(() => {
@@ -28,6 +29,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <ScrollToTop />
         <Layout>
           <Routes>
             <Route path="/" element={<Home />} />

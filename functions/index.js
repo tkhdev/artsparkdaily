@@ -12,7 +12,7 @@ const { curatedChallenges } = require("./constants/challenges");
 const { challengeElements } = require("./constants/challengeElements");
 const crypto = require("crypto");
 const { defineSecret } = require("firebase-functions/params");
-const { Paddle } = require('@paddle/paddle-node-sdk');
+const { Paddle } = require("@paddle/paddle-node-sdk");
 
 // Initialize Paddle client (no API key needed for webhook verification)
 const paddle = new Paddle();
@@ -70,7 +70,11 @@ exports.paddleWebhook = onRequest(
         : JSON.stringify(request.body);
 
       // Verify the webhook signature using the Paddle SDK
-      const isValid = await paddle.webhooks.isSignatureValid(rawBody, secretValue, signature);
+      const isValid = await paddle.webhooks.isSignatureValid(
+        rawBody,
+        secretValue,
+        signature
+      );
 
       if (!isValid) {
         logger.warn("Paddle webhook: Invalid signature");
@@ -291,7 +295,12 @@ exports.getUserSubscriptionStatus = onCall(
           trialEndsAt: userData.trialEndsAt || null,
           billingCycle: userData.billingCycle || null,
           promptAttempts: userData.promptAttempts || 5,
-          extraPromptAttempts: userData.extraPromptAttempts || 0
+          extraPromptAttempts: userData.extraPromptAttempts || 0,
+          extraPromptAttemptsUsed: userData.extraPromptAttemptsUsed || 0,
+          totalAvailableAttempts:
+            (userData.promptAttempts || 5) +
+            (userData.extraPromptAttempts || 0) -
+            (userData.extraPromptAttemptsUsed || 0)
         }
       };
     } catch (error) {
@@ -464,10 +473,10 @@ async function handleTransactionCompleted(transaction) {
 
     // Handle different types of one-time purchases
     for (const item of transaction.items) {
+      logger.info("Transaction completed for item:", item);
       if (item.price.description.includes("Prompt Attempts")) {
         // Handle extra prompt attempts purchase
-        const attemptsToAdd =
-          parseInt(item.price.description.match(/\d+/)[0]) || 20;
+        const attemptsToAdd = 10;
 
         await db
           .collection("users")
@@ -1023,49 +1032,100 @@ exports.trackGenerationAttempt = onCall(async (request) => {
   const data = request.data;
 
   if (!context) {
-    throw new functions.https.HttpsError(
-      "unauthenticated",
-      "User must be authenticated"
-    );
+    throw new HttpsError("unauthenticated", "User must be authenticated");
   }
 
   const { challengeId } = data;
   const userId = context.uid;
 
   try {
+    // Get user document to check current limits and extra attempts
+    const userDoc = await db.doc(`users/${userId}`).get();
+    if (!userDoc.exists) {
+      throw new HttpsError("not-found", "User not found");
+    }
+
+    const userData = userDoc.data();
+    const baseLimitAttempts = userData.promptAttempts || 5;
+    const extraPromptAttempts = userData.extraPromptAttempts || 0;
+    const extraPromptAttemptsUsed = userData.extraPromptAttemptsUsed || 0;
+
+    // Get or create user challenge tracking document
     const userChallengeRef = db.doc(`userChallenges/${userId}_${challengeId}`);
     const userChallengeDoc = await userChallengeRef.get();
 
-    const userDoc = await db.doc(`users/${userId}`).get();
-    const maxAttempts = userDoc.data()?.promptAttempts ? userDoc.data()?.promptAttempts : 5;
-
+    let currentAttempts = 0;
     if (userChallengeDoc.exists) {
-      const currentAttempts = userChallengeDoc.data().attemptsUsed || 0;
-      if (currentAttempts >= maxAttempts) {
-        throw new functions.https.HttpsError(
-          "resource-exhausted",
-          "Maximum attempts reached"
-        );
-      }
-      await userChallengeRef.update({
+      currentAttempts = userChallengeDoc.data().attemptsUsed || 0;
+    }
+
+    // Can be negative in case some extra attempts already used
+    const baseAttemptsLeft = baseLimitAttempts - currentAttempts;
+
+    // How many extra attempts left
+    const extraAttemptsLeft = extraPromptAttempts - extraPromptAttemptsUsed;
+
+    // Check if user has exceeded total available attempts
+    if (baseAttemptsLeft <= 0 && extraAttemptsLeft <= 1) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Maximum attempts reached (including extra attempts)"
+      );
+    }
+
+    // Determine if this attempt will use extra attempts
+    const isUsingExtraAttempt = baseAttemptsLeft <= 0;
+
+    // Start a batch write to ensure atomicity
+    const batch = db.batch();
+
+    // Update user challenge tracking
+    if (userChallengeDoc.exists) {
+      batch.update(userChallengeRef, {
         attemptsUsed: admin.firestore.FieldValue.increment(1),
-        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp()
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+        ...(isUsingExtraAttempt && {
+          extraPromptAttemptsUsed: admin.firestore.FieldValue.increment(1)
+        })
       });
     } else {
-      await userChallengeRef.set({
+      batch.set(userChallengeRef, {
         userId,
         challengeId,
         attemptsUsed: 1,
+        extraPromptAttemptsUsed: isUsingExtraAttempt ? 1 : 0,
         hasSubmitted: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         lastAttemptAt: admin.firestore.FieldValue.serverTimestamp()
       });
     }
 
-    return { success: true };
+    // If using extra attempt, decrement user's extra attempts
+    if (isUsingExtraAttempt) {
+      const userRef = db.doc(`users/${userId}`);
+      batch.update(userRef, {
+        extraPromptAttemptsUsed: admin.firestore.FieldValue.increment(1)
+      });
+    }
+
+    // Commit the batch write
+    await batch.commit();
+
+    return {
+      success: true,
+      attemptsUsed: currentAttempts + 1,
+      usedExtraPromptAttempt: isUsingExtraAttempt,
+      remainingExtraAttempts: isUsingExtraAttempt
+        ? extraPromptAttempts - extraPromptAttemptsUsed
+        : extraPromptAttempts - extraPromptAttemptsUsed - 1
+    };
   } catch (error) {
-    console.error("Error tracking generation attempt:", error);
-    throw new functions.https.HttpsError("internal", error.message);
+    logger.error("Error tracking generation attempt:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError("internal", error.message);
   }
 });
 

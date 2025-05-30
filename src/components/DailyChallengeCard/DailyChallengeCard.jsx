@@ -3,7 +3,6 @@ import { useAuth } from "../../context/AuthContext";
 import { useDailyChallenge } from "../../hooks/useDailyChallenge";
 import usePollinationsImage from "../../hooks/usePollinationsImage";
 import { useSubmission } from "../../hooks/useSubmission";
-import { useTimer } from "../../hooks/useTimer";
 
 import LoadingState from "../LoadingState";
 import ErrorState from "../ErrorState";
@@ -18,9 +17,9 @@ import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
 export default function DailyChallengeCard() {
   const { challenge, loading, error } = useDailyChallenge();
   const [creating, setCreating] = useState(false);
+  const [localExtraAttemptsLeft, setLocalExtraAttemptsLeft] = useState(0);
   const { user } = useAuth();
   const { profile } = useOwnUserProfile();
-  const timeRemaining = useTimer();
 
   const {
     generatedImages,
@@ -31,7 +30,7 @@ export default function DailyChallengeCard() {
     canGenerate,
     generateImage,
     fetchAttemptsUsed,
-    fetchGeneratedImages,
+    fetchGeneratedImages
   } = usePollinationsImage(challenge?.id);
 
   const {
@@ -62,6 +61,17 @@ export default function DailyChallengeCard() {
     resetSubmission
   ]);
 
+  useEffect(() => {
+    if (profile) {
+      const initialExtra = Math.max(
+        (profile.extraPromptAttempts || 0) -
+          (profile.extraPromptAttemptsUsed || 0),
+        0
+      );
+      setLocalExtraAttemptsLeft(initialExtra);
+    }
+  }, [profile?.extraPromptAttempts, profile?.extraPromptAttemptsUsed]);
+
   const handleCreateChallenge = async () => {
     setCreating(true);
     try {
@@ -76,6 +86,10 @@ export default function DailyChallengeCard() {
   const handleGenerateArt = async (prompt) => {
     try {
       await generateImage(prompt, challenge.id);
+      // Local decrement after a successful generation
+      if (attemptsUsed >= maxAttempts && localExtraAttemptsLeft > 0) {
+        setLocalExtraAttemptsLeft((prev) => Math.max(prev - 1, 0));
+      }
     } catch (error) {
       console.error("Failed to generate image:", error);
     }
@@ -113,7 +127,9 @@ export default function DailyChallengeCard() {
 
   // Error state
   if (error) {
-    return <ErrorState error={error} onRetry={() => window.location.reload()} />;
+    return (
+      <ErrorState error={error} onRetry={() => window.location.reload()} />
+    );
   }
 
   // No challenge state
@@ -127,21 +143,24 @@ export default function DailyChallengeCard() {
     );
   }
 
-  const maxAttempts = profile?.promptAttempts ? profile?.promptAttempts : 5;
+  const maxAttempts = profile?.promptAttempts || 5;
+  const extraAttemptsLeft =
+    (profile?.extraPromptAttempts || 0) -
+    (profile?.extraPromptAttemptsUsed || 0);
 
   return (
     <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-white/10 max-w-4xl mx-auto mb-24">
       <div className="px-6 py-8 sm:p-10">
         <ChallengeHeader
           challenge={challenge}
-          timeRemaining={timeRemaining}
           userSubmission={userSubmission}
         />
 
         {user && (
           <AttemptsCounter
-            attemptsUsed={attemptsUsed}
+            attemptsUsed={Math.min(attemptsUsed, maxAttempts)}
             maxAttempts={maxAttempts}
+            extraAttemptsLeft={extraAttemptsLeft}
             isLoading={attemptsLoading}
           />
         )}
