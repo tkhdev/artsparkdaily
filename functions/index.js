@@ -1,11 +1,17 @@
 // Firebase Functions - functions/index.js
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const {
+  onCall,
+  HttpsError,
+  onRequest
+} = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { curatedChallenges } = require("./constants/challenges");
 const { challengeElements } = require("./constants/challengeElements");
+const crypto = require("crypto");
+const { defineSecret } = require("firebase-functions/params");
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -15,6 +21,636 @@ const db = admin.firestore();
 setGlobalOptions({
   region: "us-central1"
 });
+
+const PADDLE_WEBHOOK_SECRET = defineSecret("PADDLE_WEBHOOK_SECRET");
+
+// Helper function to require authentication
+function requireAuth(request, functionName) {
+  if (!request.auth) {
+    logger.warn(`${functionName}: Unauthenticated request`);
+    throw new HttpsError("unauthenticated", "Authentication required");
+  }
+  return request.auth;
+}
+
+// Helper function to verify Paddle webhook signature
+function verifyPaddleSignature(rawBody, signature, secret) {
+  try {
+    const expectedSignature = crypto
+      .createHmac("sha256", secret)
+      .update(rawBody, "utf8")
+      .digest("hex");
+
+    return crypto.timingSafeEqual(
+      Buffer.from(signature, "hex"),
+      Buffer.from(expectedSignature, "hex")
+    );
+  } catch (error) {
+    logger.error("Error verifying Paddle signature:", error);
+    return false;
+  }
+}
+
+exports.paddleWebhook = onRequest(
+  {
+    cors: false,
+    enforceAppCheck: false,
+    secrets: [PADDLE_WEBHOOK_SECRET]
+  },
+  async (request, response) => {
+    try {
+      if (request.method !== "POST") {
+        logger.warn("Paddle webhook: Invalid method", request.method);
+        return response.status(405).send("Method not allowed");
+      }
+
+      const signature = request.headers["paddle-signature"];
+
+      // Get raw body - Paddle sends JSON
+      const rawBody = request.rawBody
+        ? request.rawBody.toString()
+        : JSON.stringify(request.body);
+
+      const secretValue = PADDLE_WEBHOOK_SECRET.value();
+
+      if (!secretValue) {
+        logger.error("Paddle webhook: Missing webhook secret");
+        return response.status(500).send("Webhook secret not configured");
+      }
+
+      if (!signature) {
+        logger.warn("Paddle webhook: Missing signature");
+        return response.status(400).send("Missing signature");
+      }
+
+      if (!verifyPaddleSignature(rawBody, signature, secretValue)) {
+        logger.warn("Paddle webhook: Invalid signature");
+        return response.status(400).send("Invalid signature");
+      }
+
+      // Parse the event
+      const event = request.body;
+      logger.info("Paddle webhook received:", {
+        eventType: event.event_type,
+        eventId: event.event_id || "unknown"
+      });
+
+      // Handle different event types
+      switch (event.event_type) {
+        case "subscription.created":
+          await handleSubscriptionCreated(event.data);
+          break;
+
+        case "subscription.updated":
+          await handleSubscriptionUpdated(event.data);
+          break;
+
+        case "subscription.canceled":
+          await handleSubscriptionCanceled(event.data);
+          break;
+
+        case "subscription.paused":
+          await handleSubscriptionPaused(event.data);
+          break;
+
+        case "subscription.resumed":
+          await handleSubscriptionResumed(event.data);
+          break;
+
+        case "transaction.completed":
+          await handleTransactionCompleted(event.data);
+          break;
+
+        case "transaction.updated":
+          await handleTransactionUpdated(event.data);
+          break;
+
+        case "customer.created":
+          await handleCustomerCreated(event.data);
+          break;
+
+        default:
+          logger.info("Unhandled Paddle webhook event:", event.event_type);
+      }
+
+      response.status(200).send("OK");
+    } catch (error) {
+      logger.error("Paddle webhook error:", error);
+      response.status(500).send("Internal server error");
+    }
+  }
+);
+
+// Handle subscription created
+// Handle subscription created - FIXED
+async function handleSubscriptionCreated(subscription) {
+  try {
+    logger.info("Processing subscription.created:", subscription.id);
+
+    const customData = subscription.custom_data || {};
+    const userId = customData.userId;
+
+    if (!userId) {
+      logger.error("No userId found in subscription custom_data");
+      return;
+    }
+
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      logger.error("User not found:", userId);
+      return;
+    }
+
+    // Determine if it's annual billing
+    const isAnnual = customData.isAnnual === "true";
+
+    // Update user document with proper error handling
+    const updateData = {
+      paddleSubscriptionId: subscription.id,
+      paddleCustomerId: subscription.customer_id,
+      subscriptionStatus: subscription.status,
+      plan: "pro",
+      planStartDate: subscription.started_at || new Date().toISOString(),
+      subscriptionEndDate: subscription.current_billing_period?.ends_at || null,
+      billingCycle: isAnnual ? "annual" : "monthly",
+      promptAttempts: 100,
+      isTrialActive: subscription.status === "trialing",
+      trialEndsAt: subscription.trial_dates?.ends_at || null,
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await userRef.update(updateData);
+
+    // Send welcome notification
+    await db.collection("notifications").add({
+      userId,
+      type: "subscription",
+      title: "Welcome to Art Spark Pro! 🎨",
+      message:
+        subscription.status === "trialing"
+          ? "Your 7-day trial has started. Enjoy unlimited creativity!"
+          : "Your Pro subscription is now active. Create amazing art!",
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    logger.info("Subscription created successfully for user:", userId);
+  } catch (error) {
+    logger.error("Error handling subscription.created:", error);
+    throw error;
+  }
+}
+
+// Handle subscription updated
+async function handleSubscriptionUpdated(subscription) {
+  try {
+    logger.info("Processing subscription.updated:", subscription.id);
+
+    const usersQuery = await db
+      .collection("users")
+      .where("paddleSubscriptionId", "==", subscription.id)
+      .limit(1)
+      .get();
+
+    if (usersQuery.empty) {
+      logger.error("User not found for subscription:", subscription.id);
+      return;
+    }
+
+    const userDoc = usersQuery.docs[0];
+    const userId = userDoc.id;
+    const userData = userDoc.data();
+
+    // Update subscription details
+    const updates = {
+      subscriptionStatus: subscription.status,
+      subscriptionEndDate: subscription.current_billing_period?.ends_at || null,
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    // Handle status changes
+    if (
+      subscription.status === "active" &&
+      userData.subscriptionStatus !== "active"
+    ) {
+      updates.plan = "pro";
+      updates.promptAttempts = 100;
+      updates.isTrialActive = false;
+
+      await db.collection("notifications").add({
+        userId,
+        type: "subscription",
+        title: "Subscription Activated! 🎉",
+        message: "Your Pro subscription is now active. Keep creating!",
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else if (subscription.status === "past_due") {
+      await db.collection("notifications").add({
+        userId,
+        type: "billing",
+        title: "Payment Issue ⚠️",
+        message:
+          "We couldn't process your payment. Please update your billing information.",
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    await userDoc.ref.update(updates);
+    logger.info("Subscription updated successfully for user:", userId);
+  } catch (error) {
+    logger.error("Error handling subscription.updated:", error);
+    throw error;
+  }
+}
+
+// Helper function to get user subscription status - FIXED
+exports.getUserSubscriptionStatus = onCall(
+  {
+    enforceAppCheck: false
+  },
+  async (request) => {
+    try {
+      const auth = requireAuth(request, "getUserSubscriptionStatus");
+      const userId = auth.uid;
+
+      const userDoc = await db.collection("users").doc(userId).get();
+
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "User not found");
+      }
+
+      const userData = userDoc.data();
+
+      return {
+        success: true,
+        subscription: {
+          status: userData.subscriptionStatus || "free",
+          plan: userData.plan || "free",
+          paddleSubscriptionId: userData.paddleSubscriptionId || null,
+          subscriptionEndDate: userData.subscriptionEndDate || null,
+          isTrialActive: userData.isTrialActive || false,
+          trialEndsAt: userData.trialEndsAt || null,
+          billingCycle: userData.billingCycle || null,
+          promptAttempts: userData.promptAttempts || 5,
+          extraPromptAttempts: userData.extraPromptAttempts || 0
+        }
+      };
+    } catch (error) {
+      logger.error("Error getting subscription status:", error);
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "Failed to get subscription status");
+    }
+  }
+);
+
+// Handle subscription canceled
+async function handleSubscriptionCanceled(subscription) {
+  try {
+    logger.info("Processing subscription.canceled:", subscription.id);
+
+    const usersQuery = await db
+      .collection("users")
+      .where("paddleSubscriptionId", "==", subscription.id)
+      .limit(1)
+      .get();
+
+    if (usersQuery.empty) {
+      logger.error("User not found for subscription:", subscription.id);
+      return;
+    }
+
+    const userDoc = usersQuery.docs[0];
+    const userId = userDoc.id;
+
+    // Update user to free plan (but keep Pro features until period ends if applicable)
+    const updates = {
+      subscriptionStatus: "canceled",
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    // If subscription ended immediately, downgrade now
+    if (
+      subscription.canceled_at &&
+      new Date(subscription.canceled_at) <= new Date()
+    ) {
+      updates.plan = "free";
+      updates.promptAttempts = 5;
+      updates.paddleSubscriptionId = null;
+    }
+
+    await userDoc.ref.update(updates);
+
+    // Send cancellation notification
+    await db.collection("notifications").add({
+      userId,
+      type: "subscription",
+      title: "Subscription Canceled",
+      message:
+        subscription.canceled_at &&
+        new Date(subscription.canceled_at) <= new Date()
+          ? "Your Pro subscription has ended. Thanks for being a Pro user!"
+          : "Your subscription will end at the current billing period. You can reactivate anytime.",
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    logger.info("Subscription canceled successfully for user:", userId);
+  } catch (error) {
+    logger.error("Error handling subscription.canceled:", error);
+    throw error;
+  }
+}
+
+// Handle subscription paused
+async function handleSubscriptionPaused(subscription) {
+  try {
+    logger.info("Processing subscription.paused:", subscription.id);
+
+    const usersQuery = await db
+      .collection("users")
+      .where("paddleSubscriptionId", "==", subscription.id)
+      .limit(1)
+      .get();
+
+    if (usersQuery.empty) {
+      logger.error("User not found for subscription:", subscription.id);
+      return;
+    }
+
+    const userDoc = usersQuery.docs[0];
+    const userId = userDoc.id;
+
+    await userDoc.ref.update({
+      subscriptionStatus: "paused",
+      plan: "free", // Downgrade during pause
+      promptAttempts: 5,
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await db.collection("notifications").add({
+      userId,
+      type: "subscription",
+      title: "Subscription Paused",
+      message:
+        "Your Pro subscription is paused. Resume anytime to continue enjoying Pro features.",
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    logger.info("Subscription paused successfully for user:", userId);
+  } catch (error) {
+    logger.error("Error handling subscription.paused:", error);
+    throw error;
+  }
+}
+
+// Handle subscription resumed
+async function handleSubscriptionResumed(subscription) {
+  try {
+    logger.info("Processing subscription.resumed:", subscription.id);
+
+    const usersQuery = await db
+      .collection("users")
+      .where("paddleSubscriptionId", "==", subscription.id)
+      .limit(1)
+      .get();
+
+    if (usersQuery.empty) {
+      logger.error("User not found for subscription:", subscription.id);
+      return;
+    }
+
+    const userDoc = usersQuery.docs[0];
+    const userId = userDoc.id;
+
+    await userDoc.ref.update({
+      subscriptionStatus: "active",
+      plan: "pro",
+      promptAttempts: 100,
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await db.collection("notifications").add({
+      userId,
+      type: "subscription",
+      title: "Welcome Back! 🎨",
+      message:
+        "Your Pro subscription has been resumed. Continue creating amazing art!",
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    logger.info("Subscription resumed successfully for user:", userId);
+  } catch (error) {
+    logger.error("Error handling subscription.resumed:", error);
+    throw error;
+  }
+}
+
+// Handle transaction completed (for one-time purchases)
+async function handleTransactionCompleted(transaction) {
+  try {
+    logger.info("Processing transaction.completed:", transaction.id);
+
+    const customData = transaction.custom_data || {};
+    const userId = customData.userId;
+
+    if (!userId) {
+      logger.error("No userId found in transaction custom_data");
+      return;
+    }
+
+    // Handle different types of one-time purchases
+    for (const item of transaction.items) {
+      if (item.price.description.includes("Prompt Attempts")) {
+        // Handle extra prompt attempts purchase
+        const attemptsToAdd =
+          parseInt(item.price.description.match(/\d+/)[0]) || 20;
+
+        await db
+          .collection("users")
+          .doc(userId)
+          .update({
+            extraPromptAttempts:
+              admin.firestore.FieldValue.increment(attemptsToAdd)
+          });
+
+        await db.collection("notifications").add({
+          userId,
+          type: "purchase",
+          title: "Purchase Complete! ✨",
+          message: `Added ${attemptsToAdd} extra prompt attempts to your account.`,
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else if (item.price.description.includes("Custom Frame")) {
+        // Handle custom frame purchase
+        const frameId = customData.frameId || "default";
+
+        await db
+          .collection("users")
+          .doc(userId)
+          .update({
+            customFrames: admin.firestore.FieldValue.arrayUnion(frameId)
+          });
+
+        await db.collection("notifications").add({
+          userId,
+          type: "purchase",
+          title: "New Frame Unlocked! 🖼️",
+          message: "Your custom frame has been added to your collection.",
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
+
+    logger.info("Transaction completed successfully for user:", userId);
+  } catch (error) {
+    logger.error("Error handling transaction.completed:", error);
+    throw error;
+  }
+}
+
+// Handle transaction updated
+async function handleTransactionUpdated(transaction) {
+  try {
+    logger.info("Processing transaction.updated:", transaction.id);
+
+    // Handle refunds or transaction status changes
+    if (transaction.status === "refunded") {
+      const customData = transaction.custom_data || {};
+      const userId = customData.userId;
+
+      if (userId) {
+        await db.collection("notifications").add({
+          userId,
+          type: "billing",
+          title: "Refund Processed",
+          message: "Your refund has been processed successfully.",
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
+
+    logger.info("Transaction updated successfully");
+  } catch (error) {
+    logger.error("Error handling transaction.updated:", error);
+    throw error;
+  }
+}
+
+// Handle customer created
+async function handleCustomerCreated(customer) {
+  try {
+    logger.info("Processing customer.created:", customer.id);
+
+    // This is mainly for logging and analytics
+    // The actual user linking happens in subscription events
+
+    logger.info("Customer created successfully:", customer.id);
+  } catch (error) {
+    logger.error("Error handling customer.created:", error);
+    throw error;
+  }
+}
+
+// Helper function to get user subscription status (callable function)
+exports.getUserSubscriptionStatus = onCall(
+  {
+    enforceAppCheck: false
+  },
+  async (request) => {
+    try {
+      const auth = requireAuth(request, "getUserSubscriptionStatus");
+      const userId = auth.uid;
+
+      const userDoc = await db.collection("users").doc(userId).get();
+
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "User not found");
+      }
+
+      const userData = userDoc.data();
+
+      return {
+        success: true,
+        subscription: {
+          status: userData.subscriptionStatus || "free",
+          plan: userData.plan || "free",
+          paddleSubscriptionId: userData.paddleSubscriptionId || null,
+          subscriptionEndDate: userData.subscriptionEndDate || null,
+          isTrialActive: userData.isTrialActive || false,
+          trialEndsAt: userData.trialEndsAt || null,
+          billingCycle: userData.billingCycle || null,
+          promptAttempts: userData.promptAttempts || 5,
+          extraPromptAttempts: userData.extraPromptAttempts || 0
+        }
+      };
+    } catch (error) {
+      logger.error("Error getting subscription status:", error);
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "Failed to get subscription status");
+    }
+  }
+);
+
+// Helper function to cancel subscription (callable function)
+exports.cancelSubscription = onCall(
+  {
+    enforceAppCheck: false
+  },
+  async (request) => {
+    try {
+      const auth = requireAuth(request, "cancelSubscription");
+      const userId = auth.uid;
+
+      const userDoc = await db.collection("users").doc(userId).get();
+
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "User not found");
+      }
+
+      const userData = userDoc.data();
+      const subscriptionId = userData.paddleSubscriptionId;
+
+      if (!subscriptionId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "No active subscription found"
+        );
+      }
+
+      // Note: In a production environment, you might want to call Paddle's API
+      // to cancel the subscription programmatically, but usually it's better
+      // to let users cancel through Paddle's customer portal
+
+      return {
+        success: true,
+        message: "Please use the billing portal to manage your subscription",
+        subscriptionId
+      };
+    } catch (error) {
+      logger.error("Error canceling subscription:", error);
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "Failed to cancel subscription");
+    }
+  }
+);
 
 // Challenge generator
 function generateHybridChallenge(date) {
@@ -132,7 +768,7 @@ exports.sendContactMessage = onCall(async (req) => {
       name,
       email,
       message,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
     return { success: true, messageId: docRef.id };
@@ -624,7 +1260,9 @@ exports.cleanupGeneratedImages = onSchedule(
       const deletePromises = imagesQuery.docs.map(async (doc) => {
         const imageData = doc.data();
         try {
-          const fileRef = storage.bucket().file(imageData.imageUrl.split('/o/')[1].split('?')[0]);
+          const fileRef = storage
+            .bucket()
+            .file(imageData.imageUrl.split("/o/")[1].split("?")[0]);
           await fileRef.delete();
           await doc.ref.delete();
           logger.info(`Deleted non-submitted image: ${imageData.imageUrl}`);
@@ -658,7 +1296,9 @@ exports.runDetermineDailyWinnerManual = onCall(async (request) => {
 
 async function determineDailyWinnerInternal(manual = false) {
   try {
-    console.log(`[${manual ? "Manual" : "Scheduled"}] Starting determineDailyWinner`);
+    console.log(
+      `[${manual ? "Manual" : "Scheduled"}] Starting determineDailyWinner`
+    );
 
     const startOfYesterday = new Date();
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
@@ -668,15 +1308,20 @@ async function determineDailyWinnerInternal(manual = false) {
     endOfYesterday.setDate(endOfYesterday.getDate() - 1);
     endOfYesterday.setHours(23, 59, 59, 999);
 
-    const dateString = startOfYesterday.toISOString().split('T')[0];
+    const dateString = startOfYesterday.toISOString().split("T")[0];
     console.log(`Targeting date: ${dateString}`);
 
     let challengeSnapshot;
     try {
       console.log("Querying dailyChallenges...");
-      const challengesQuery = db.collection('dailyChallenges')
-        .where('date', '>=', admin.firestore.Timestamp.fromDate(startOfYesterday))
-        .where('date', '<', admin.firestore.Timestamp.fromDate(endOfYesterday))
+      const challengesQuery = db
+        .collection("dailyChallenges")
+        .where(
+          "date",
+          ">=",
+          admin.firestore.Timestamp.fromDate(startOfYesterday)
+        )
+        .where("date", "<", admin.firestore.Timestamp.fromDate(endOfYesterday))
         .limit(1);
 
       challengeSnapshot = await challengesQuery.get();
@@ -697,10 +1342,11 @@ async function determineDailyWinnerInternal(manual = false) {
     let submissionsSnapshot;
     try {
       console.log("Querying submissions for challenge...");
-      const submissionsQuery = db.collection('submissions')
-        .where('challengeId', '==', challengeId)
-        .orderBy('likesCount', 'desc')
-        .orderBy('createdAt', 'asc');
+      const submissionsQuery = db
+        .collection("submissions")
+        .where("challengeId", "==", challengeId)
+        .orderBy("likesCount", "desc")
+        .orderBy("createdAt", "asc");
 
       submissionsSnapshot = await submissionsQuery.get();
     } catch (err) {
@@ -715,7 +1361,9 @@ async function determineDailyWinnerInternal(manual = false) {
 
     const winnerDoc = submissionsSnapshot.docs[0];
     const winner = winnerDoc.data();
-    console.log(`Top submission found: ${winner.userDisplayName} with ${winner.likesCount} likes`);
+    console.log(
+      `Top submission found: ${winner.userDisplayName} with ${winner.likesCount} likes`
+    );
 
     try {
       await db.doc(`dailyWinners/${dateString}`).set({
@@ -745,10 +1393,10 @@ async function determineDailyWinnerInternal(manual = false) {
     }
 
     try {
-      await db.collection('notifications').add({
+      await db.collection("notifications").add({
         userId: winner.userId,
-        type: 'winner',
-        title: 'Congratulations! 🎉',
+        type: "winner",
+        title: "Congratulations! 🎉",
         message: `You won yesterday's challenge with ${winner.likesCount} likes!`,
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -760,7 +1408,9 @@ async function determineDailyWinnerInternal(manual = false) {
       console.error("Error creating winner notification:", err);
     }
 
-    console.log(`✅ Daily winner determined: ${winner.userDisplayName} (${winner.userId})`);
+    console.log(
+      `✅ Daily winner determined: ${winner.userDisplayName} (${winner.userId})`
+    );
 
     return { status: "success", winner: winner.userDisplayName };
   } catch (error) {
@@ -773,30 +1423,34 @@ async function determineDailyWinnerInternal(manual = false) {
 async function checkAndAwardAchievement(userId, achievementId, metadata = {}) {
   try {
     const achievementsRef = db.collection(`users/${userId}/achievements`);
-    const querySnapshot = await achievementsRef.where("id", "==", achievementId).get();
-    
+    const querySnapshot = await achievementsRef
+      .where("id", "==", achievementId)
+      .get();
+
     if (!querySnapshot.empty) {
-      console.log(`Achievement ${achievementId} already awarded for user ${userId}`);
+      console.log(
+        `Achievement ${achievementId} already awarded for user ${userId}`
+      );
       return; // Achievement already awarded
     }
-    
+
     const achievementData = getAchievementData(achievementId);
     if (!achievementData) {
       console.error(`Invalid achievementId: ${achievementId}`);
       return;
     }
-    
+
     const achievementRef = achievementsRef.doc(); // Use a random ID
     await achievementRef.set({
       ...achievementData,
       unlockedAt: admin.firestore.FieldValue.serverTimestamp(),
       metadata
     });
-    
+
     await db.doc(`users/${userId}`).update({
       achievementsCount: admin.firestore.FieldValue.increment(1)
     });
-    
+
     await db.collection("notifications").add({
       userId,
       type: "achievement",
@@ -806,10 +1460,10 @@ async function checkAndAwardAchievement(userId, achievementId, metadata = {}) {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       relatedAchievementId: achievementId
     });
-    
+
     console.log(`Achievement awarded: ${achievementId} to user ${userId}`);
   } catch (error) {
-    console.error('Error awarding achievement:', error);
+    console.error("Error awarding achievement:", error);
     throw error;
   }
 }
@@ -818,41 +1472,41 @@ async function checkAndAwardAchievement(userId, achievementId, metadata = {}) {
 function getAchievementData(achievementId) {
   const achievements = {
     first_spark: {
-      id: 'first_spark',
-      name: 'First Spark',
-      description: 'Made your first submission',
-      icon: '✨',
-      type: 'submission'
+      id: "first_spark",
+      name: "First Spark",
+      description: "Made your first submission",
+      icon: "✨",
+      type: "submission"
     },
     weekly_streak: {
-      id: 'weekly_streak',
-      name: 'Weekly Streak',
-      description: '7 consecutive days of submissions',
-      icon: '🔥',
-      type: 'streak'
+      id: "weekly_streak",
+      name: "Weekly Streak",
+      description: "7 consecutive days of submissions",
+      icon: "🔥",
+      type: "streak"
     },
     crowd_favorite: {
-      id: 'crowd_favorite',
-      name: 'Crowd Favorite',
-      description: 'Received 100 likes on a submission',
-      icon: '👑',
-      type: 'engagement'
+      id: "crowd_favorite",
+      name: "Crowd Favorite",
+      description: "Received 100 likes on a submission",
+      icon: "👑",
+      type: "engagement"
     },
     critic: {
-      id: 'critic',
-      name: 'Art Critic',
-      description: 'Left 50 comments on submissions',
-      icon: '💬',
-      type: 'engagement'
+      id: "critic",
+      name: "Art Critic",
+      description: "Left 50 comments on submissions",
+      icon: "💬",
+      type: "engagement"
     },
     innovator: {
-      id: 'innovator',
-      name: 'Innovator',
-      description: 'Consistently high variety in prompt usage',
-      icon: '🚀',
-      type: 'special'
+      id: "innovator",
+      name: "Innovator",
+      description: "Consistently high variety in prompt usage",
+      icon: "🚀",
+      type: "special"
     }
   };
-  
+
   return achievements[achievementId] || null;
 }
