@@ -1,44 +1,34 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom"; // Adjust import based on your routing library
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { 
+  faCalendarDay, 
+  faClock, 
+  faCheckCircle, 
+  faArrowRight, 
+  faSpinner,
+  faExclamationTriangle,
+  faPlus
+} from "@fortawesome/free-solid-svg-icons";
 import { useAuth } from "../../context/AuthContext";
 import { useDailyChallenge } from "../../hooks/useDailyChallenge";
-import usePollinationsImage from "../../hooks/usePollinationsImage";
-import { useSubmission } from "../../hooks/useSubmission";
-
 import LoadingState from "../LoadingState";
 import ErrorState from "../ErrorState";
 import NoChallengeState from "../NoChallengeState";
-import ChallengeHeader from "../ChallengeHeader";
-import AttemptsCounter from "../AttemptsCounter";
-import PromptForm from "../PromptForm";
-import ImageGallery from "../ImageGallery";
-import SignInPrompt from "../SignInPrompt";
-import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
+import { useSubmission } from "../../hooks/useSubmission";
+import { useTimer } from '../../hooks/useTimer';
+import { getTypeColor } from "../../utils/challengeUtils";
+import { formatDate } from "../../utils/dateFormatter";
+import GlowButton from "../GlowButton/GlowButton";
 
-export default function DailyChallengeCard() {
+export default function DailyChallengePreview() {
   const { challenge, loading, error } = useDailyChallenge();
   const [creating, setCreating] = useState(false);
-  const [localExtraAttemptsLeft, setLocalExtraAttemptsLeft] = useState(0);
   const { user } = useAuth();
-  const { profile } = useOwnUserProfile();
-
+  const timeRemaining = useTimer();
+  
   const {
-    generatedImages,
-    loading: imageLoading,
-    error: imageError,
-    attemptsUsed,
-    attemptsLoading,
-    canGenerate,
-    generateImage,
-    fetchAttemptsUsed,
-    fetchGeneratedImages
-  } = usePollinationsImage(challenge?.id);
-
-  const {
-    submitArt,
-    loading: submissionLoading,
-    error: submissionError,
     userSubmission,
-    canSubmit,
     fetchSubmission,
     resetSubmission
   } = useSubmission(challenge?.id, user?.uid);
@@ -48,77 +38,10 @@ export default function DailyChallengeCard() {
     if (!user) {
       resetSubmission();
     } else if (challenge?.id && user?.uid) {
-      fetchAttemptsUsed(challenge.id);
       fetchSubmission();
-      fetchGeneratedImages();
     }
-  }, [
-    user,
-    challenge?.id,
-    fetchAttemptsUsed,
-    fetchSubmission,
-    fetchGeneratedImages,
-    resetSubmission
-  ]);
+  }, [user, challenge?.id, fetchSubmission, resetSubmission]);
 
-  useEffect(() => {
-    if (profile) {
-      const initialExtra = Math.max(
-        (profile.extraPromptAttempts || 0) -
-          (profile.extraPromptAttemptsUsed || 0),
-        0
-      );
-      setLocalExtraAttemptsLeft(initialExtra);
-    }
-  }, [profile?.extraPromptAttempts, profile?.extraPromptAttemptsUsed]);
-
-  const handleCreateChallenge = async () => {
-    setCreating(true);
-    try {
-      await createTodaysChallenge();
-    } catch (err) {
-      console.error("Failed to create challenge:", err);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleGenerateArt = async (prompt) => {
-    try {
-      await generateImage(prompt, challenge.id);
-      // Local decrement after a successful generation
-      if (attemptsUsed >= maxAttempts && localExtraAttemptsLeft > 0) {
-        setLocalExtraAttemptsLeft((prev) => Math.max(prev - 1, 0));
-      }
-    } catch (error) {
-      console.error("Failed to generate image:", error);
-    }
-  };
-
-  const handleSubmitArt = async (image) => {
-    if (!image.imageUrl) {
-      alert("Please select an image first!");
-      return;
-    }
-
-    if (!canSubmit) {
-      alert("You have already submitted to today's challenge!");
-      return;
-    }
-
-    try {
-      await submitArt({
-        challengeId: challenge.id,
-        prompt: image.prompt,
-        imageUrl: image.imageUrl,
-        userId: user.uid,
-        userDisplayName: profile.displayName || user.displayName || "Anonymous",
-        userPhotoURL: user.photoURL || null
-      });
-    } catch (error) {
-      console.error("Failed to submit art:", error);
-    }
-  };
 
   // Loading state
   if (loading) {
@@ -137,56 +60,81 @@ export default function DailyChallengeCard() {
     return (
       <NoChallengeState
         user={user}
-        onCreateChallenge={handleCreateChallenge}
         isCreating={creating}
       />
     );
   }
 
-  const maxAttempts = profile?.promptAttempts || 5;
-  const extraAttemptsLeft =
-    (profile?.extraPromptAttempts || 0) -
-    (profile?.extraPromptAttemptsUsed || 0);
-
   return (
-    <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-white/10 max-w-4xl mx-auto mb-24">
-      <div className="px-6 py-8 sm:p-10">
-        <ChallengeHeader
-          challenge={challenge}
-          userSubmission={userSubmission}
-        />
-
-        {user && (
-          <AttemptsCounter
-            attemptsUsed={Math.min(attemptsUsed, maxAttempts)}
-            maxAttempts={maxAttempts}
-            extraAttemptsLeft={extraAttemptsLeft}
-            isLoading={attemptsLoading}
-          />
-        )}
-
-        <div className="space-y-8">
-          {user && !userSubmission && (
-            <PromptForm
-              challenge={challenge}
-              onGenerate={handleGenerateArt}
-              isLoading={imageLoading}
-              canGenerate={canGenerate}
-              error={imageError || submissionError}
-            />
+    <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-white/10 max-w-2xl mx-auto mb-8">
+      <div className="px-6 py-6">
+        {/* Header with badges */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+            Today's Challenge
+          </span>
+          {challenge.type && (
+            <span
+              className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${getTypeColor(
+                challenge.type
+              )}`}
+            >
+              {challenge.type.charAt(0).toUpperCase() + challenge.type.slice(1)}
+            </span>
           )}
-
-          {user && (
-            <ImageGallery
-              images={[...generatedImages]}
-              userSubmission={userSubmission}
-              onSubmit={handleSubmitArt}
-              isSubmitting={submissionLoading}
-              challengeTitle={challenge.title}
-            />
+          {user && userSubmission && (
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-300 border border-green-500/30">
+              <FontAwesomeIcon icon={faCheckCircle} className="mr-1" />
+              Submitted
+            </span>
           )}
+        </div>
 
-          {!user && <SignInPrompt />}
+        {/* Challenge info */}
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {challenge.title}
+          </h2>
+          <p className="text-gray-300 text-sm mb-3 line-clamp-2">
+            {challenge.task}
+          </p>
+          
+          <div className="flex items-center justify-between text-sm">
+            {challenge.date && (
+              <p className="text-gray-400 flex items-center">
+                <FontAwesomeIcon icon={faCalendarDay} className="mr-1" />
+                {formatDate(challenge.date)}
+              </p>
+            )}
+            
+            <div className="text-right">
+              <span className="text-gray-400 text-xs block">Time remaining</span>
+              <div className="text-lg font-mono font-bold text-white flex items-center">
+                <FontAwesomeIcon icon={faClock} className="mr-1 text-xs" />
+                {timeRemaining}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Call to action */}
+        <div className="pt-4 border-t border-white/10">
+          <Link 
+            to="/daily-challenge" // Adjust this path to match your routing
+            className="group w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-3 px-6 rounded-lg flex justify-center items-center space-x-2 transition-all"
+          >
+            <span>
+              {user && userSubmission 
+                ? "View Your Submission" 
+                : user 
+                  ? "Join Challenge" 
+                  : "View Challenge"}
+            </span>
+            <FontAwesomeIcon 
+              icon={faArrowRight} 
+              className="ml-2 group-hover:translate-x-1 transition-transform" 
+            />
+          </Link>
         </div>
       </div>
     </div>

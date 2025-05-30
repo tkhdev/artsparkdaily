@@ -1066,7 +1066,7 @@ exports.trackGenerationAttempt = onCall(async (request) => {
     const extraAttemptsLeft = extraPromptAttempts - extraPromptAttemptsUsed;
 
     // Check if user has exceeded total available attempts
-    if (baseAttemptsLeft <= 0 && extraAttemptsLeft <= 1) {
+    if (baseAttemptsLeft <= 0 && extraAttemptsLeft < 1) {
       throw new HttpsError(
         "resource-exhausted",
         "Maximum attempts reached (including extra attempts)"

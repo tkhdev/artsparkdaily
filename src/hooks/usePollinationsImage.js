@@ -54,7 +54,7 @@ export default function usePollinationsImage(challengeId) {
           }
         );
 
-        return { id: generatedImageDoc.id, imageUrl: downloadURL, prompt };
+        return { id: generatedImageDoc.id, imageUrl: downloadURL, prompt, createdAt: generatedImageDoc.createdAt };
       } catch (error) {
         throw new Error(`Failed to upload image: ${error.message}`);
       }
