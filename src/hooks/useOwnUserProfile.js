@@ -6,19 +6,42 @@ export const useOwnUserProfile = () => {
   const { user, profile, dispatch } = useAuth();
 
   const updateProfile = async (updatedFields) => {
-    if (!user) return;
+    if (!user?.uid) {
+      console.warn("Cannot update profile: user not authenticated");
+      return;
+    }
 
-    const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, updatedFields);
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, updatedFields);
 
-    // Update context
-    dispatch({ type: "SET_PROFILE", payload: { ...profile, ...updatedFields } });
+      // Update context
+      dispatch({ type: "SET_PROFILE", payload: { ...profile, ...updatedFields } });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      throw error;
+    }
   };
 
   const refetchProfile = async () => {
-    const docRef = doc(db, "users", user.uid);
-    const docSnap = await getDoc(docRef);
-    dispatch({ type: "SET_PROFILE", payload: { ...docSnap.data() } });
+    if (!user?.uid) {
+      console.warn("Cannot refetch profile: user not authenticated");
+      return;
+    }
+
+    try {
+      const docRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        dispatch({ type: "SET_PROFILE", payload: { ...docSnap.data() } });
+      } else {
+        console.warn("User profile document does not exist");
+      }
+    } catch (error) {
+      console.error("Error refetching profile:", error);
+      throw error;
+    }
   };
 
   return { updateProfile, profile, refetchProfile };

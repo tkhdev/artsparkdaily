@@ -84,8 +84,8 @@ function Header() {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-4">
-            {["/", "/gallery", "/leaderboard", "/pricing", ...(user ? ["/notifications"] : [])].map((path) => {
-              const label = path === "/" ? "Home" : path.replace("/", "").charAt(0).toUpperCase() + path.slice(2);
+            {["/", "/daily-challenge", "/gallery", "/leaderboard", "/pricing", ...(user ? ["/notifications"] : [])].map((path) => {
+              const label = path === "/" ? "Home" : (path.replace("/", "").charAt(0).toUpperCase() + path.slice(2)).replaceAll('-', ' ');
               return (
                 <NavLink
                   key={path}
@@ -175,8 +175,8 @@ function Header() {
         {/* Mobile Nav Menu */}
         {mobileOpen && (
           <div className="md:hidden flex flex-col space-y-2 mt-2">
-            {["/", "/gallery", "/leaderboard", "/pricing", ...(user ? ["/notifications"] : [])].map((path) => {
-              const label = path === "/" ? "Home" : path.replace("/", "").charAt(0).toUpperCase() + path.slice(2);
+            {["/", "/daily-challenge", "/gallery", "/leaderboard", "/pricing", ...(user ? ["/notifications"] : [])].map((path) => {
+              const label = path === "/" ? "Home" : (path.replace("/", "").charAt(0).toUpperCase() + path.slice(2)).replaceAll('-', ' ');
               return (
                 <NavLink
                   key={path}

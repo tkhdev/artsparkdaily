@@ -19,6 +19,7 @@ import PrivacyPolicy from "./pages/Static/PrivacyPolicy";
 import ContactUs from "./pages/Static/Contact";
 import PricingPage from "./pages/Static/Pricing";
 import ScrollToTop from "./components/ScrollToTop";
+import DailyChallengePage from "./pages/DailyChallenge/DailyChallenge";
 
 function App() {
   useEffect(() => {
@@ -40,6 +41,7 @@ function App() {
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/daily-challenge" element={<DailyChallengePage />} />
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
