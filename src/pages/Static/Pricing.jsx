@@ -10,11 +10,10 @@ import {
   faInfinity
 } from "@fortawesome/free-solid-svg-icons";
 import { Link } from "react-router-dom";
-import { useAuthActions } from "../../hooks/useAuthActions";
+import PaddleCheckout from "../../components/PaddleCheckout";
 
 const PricingPage = () => {
   const [isAnnual, setIsAnnual] = useState(false);
-  const { signupFree, signupPro } = useAuthActions();
 
   const plans = [
     {
@@ -31,7 +30,7 @@ const PricingPage = () => {
         "Basic achievements"
       ],
       cta: "Get Started Free",
-      ctaAction: signupFree,
+      ctaAction: () => window.location.href = '/signup', // Redirect to signup page
       popular: false,
       gradient: "from-slate-600 to-slate-700"
     },
@@ -52,7 +51,7 @@ const PricingPage = () => {
         "Priority support"
       ],
       cta: "Start Pro Trial",
-      ctaAction: signupPro,
+      priceId: isAnnual ? 'pri_01jwec4skf2yxcjen28n8sy0s3' : 'pri_01jwec3qcv96d5ceymh7dfe45x', // Replace with actual Paddle Price IDs
       popular: true,
       gradient: "from-pink-600 to-purple-600"
     }
@@ -63,7 +62,8 @@ const PricingPage = () => {
       name: "Extra Prompt Attempts",
       price: "0.99",
       description: "10 additional attempts for any challenge",
-      icon: faBolt
+      icon: faBolt,
+      priceId: 'pri_01jwec6pyjmpcrawsytnb0zvqz' // Replace with actual Paddle Price ID
     }
   ];
 
@@ -185,15 +185,22 @@ const PricingPage = () => {
                     </ul>
                   </div>
 
-                  <button
-                    onClick={plan.ctaAction}
-                    className={`group relative overflow-hidden bg-gradient-to-r ${plan.gradient} text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl text-center w-full transition-all hover:scale-105 cursor-pointer block`}
-                  >
-                    <span className="relative z-10 flex items-center justify-center gap-2">
-                      {plan.cta}
+                  {plan.name === "Free" ? (
+                    <button
+                      onClick={plan.ctaAction}
+                      className={`group relative overflow-hidden bg-gradient-to-r ${plan.gradient} text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl text-center w-full transition-all hover:scale-105 cursor-pointer flex items-center justify-center gap-2`}
+                    >
+                      <span className="relative z-10">{plan.cta}</span>
                       <FontAwesome icon={faArrowRight} />
-                    </span>
-                  </button>
+                    </button>
+                  ) : (
+                    <PaddleCheckout
+                      priceId={plan.priceId}
+                      type="subscription"
+                      isAnnual={isAnnual}
+                      ctaText={plan.cta}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -230,9 +237,11 @@ const PricingPage = () => {
                     <div className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400 mb-4">
                       ${addon.price}
                     </div>
-                    <button className="w-full bg-gradient-to-r from-slate-700 to-slate-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-slate-600 hover:to-slate-500 transition-all cursor-pointer">
-                      Add to Cart
-                    </button>
+                    <PaddleCheckout
+                      priceId={addon.priceId}
+                      type="one-time"
+                      ctaText="Add to Cart"
+                    />
                   </div>
                 </div>
               </div>
