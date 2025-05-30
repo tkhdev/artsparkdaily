@@ -13,11 +13,13 @@ import AttemptsCounter from "../AttemptsCounter";
 import PromptForm from "../PromptForm";
 import ImageGallery from "../ImageGallery";
 import SignInPrompt from "../SignInPrompt";
+import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
 
 export default function DailyChallengeCard() {
   const { challenge, loading, error } = useDailyChallenge();
   const [creating, setCreating] = useState(false);
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
+  const { profile } = useOwnUserProfile();
   const timeRemaining = useTimer();
 
   const {
@@ -125,7 +127,7 @@ export default function DailyChallengeCard() {
     );
   }
 
-  const maxAttempts = profile?.isPro ? 100 : 5;
+  const maxAttempts = profile?.promptAttempts ? profile?.promptAttempts : 5;
 
   return (
     <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-xl border border-white/10 max-w-4xl mx-auto mb-24">
