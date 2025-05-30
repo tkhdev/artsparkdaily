@@ -12,6 +12,10 @@ const { curatedChallenges } = require("./constants/challenges");
 const { challengeElements } = require("./constants/challengeElements");
 const crypto = require("crypto");
 const { defineSecret } = require("firebase-functions/params");
+const { Paddle } = require('@paddle/paddle-node-sdk');
+
+// Initialize Paddle client (no API key needed for webhook verification)
+const paddle = new Paddle();
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -33,23 +37,6 @@ function requireAuth(request, functionName) {
   return request.auth;
 }
 
-function verifyPaddleSignature(rawBody, signature, secret) {
-  try {
-    const expectedSignature = crypto
-      .createHmac("sha256", secret)
-      .update(rawBody, "utf8")
-      .digest("base64"); // Use base64 instead of hex
-
-    return crypto.timingSafeEqual(
-      Buffer.from(signature, "base64"),
-      Buffer.from(expectedSignature, "base64")
-    );
-  } catch (error) {
-    logger.error("Error verifying Paddle signature:", error);
-    return false;
-  }
-}
-
 exports.paddleWebhook = onRequest(
   {
     cors: false,
@@ -65,10 +52,10 @@ exports.paddleWebhook = onRequest(
 
       const signature = request.headers["paddle-signature"];
 
-      // Get raw body - Paddle sends JSON
-      const rawBody = request.rawBody
-        ? request.rawBody.toString()
-        : JSON.stringify(request.body);
+      if (!signature) {
+        logger.warn("Paddle webhook: Missing signature");
+        return response.status(400).send("Missing signature");
+      }
 
       const secretValue = PADDLE_WEBHOOK_SECRET.value();
 
@@ -77,12 +64,15 @@ exports.paddleWebhook = onRequest(
         return response.status(500).send("Webhook secret not configured");
       }
 
-      if (!signature) {
-        logger.warn("Paddle webhook: Missing signature");
-        return response.status(400).send("Missing signature");
-      }
+      // Ensure rawBody is available
+      const rawBody = request.rawBody
+        ? request.rawBody.toString()
+        : JSON.stringify(request.body);
 
-      if (!verifyPaddleSignature(rawBody, signature, secretValue)) {
+      // Verify the webhook signature using the Paddle SDK
+      const isValid = await paddle.webhooks.isSignatureValid(rawBody, secretValue, signature);
+
+      if (!isValid) {
         logger.warn("Paddle webhook: Invalid signature");
         return response.status(400).send("Invalid signature");
       }
@@ -256,6 +246,12 @@ async function handleSubscriptionUpdated(subscription) {
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
+    }
+    if (subscription.status === "past_due" && userData.isTrialActive) {
+      updates.plan = "free";
+      updates.promptAttempts = 5;
+      updates.isTrialActive = false;
+      // Send trial expired notification
     }
 
     await userDoc.ref.update(updates);
@@ -1041,8 +1037,7 @@ exports.trackGenerationAttempt = onCall(async (request) => {
     const userChallengeDoc = await userChallengeRef.get();
 
     const userDoc = await db.doc(`users/${userId}`).get();
-    const isPro = userDoc.data()?.isPro;
-    const maxAttempts = isPro ? 15 : 5;
+    const maxAttempts = userDoc.data()?.promptAttempts ? userDoc.data()?.promptAttempts : 5;
 
     if (userChallengeDoc.exists) {
       const currentAttempts = userChallengeDoc.data().attemptsUsed || 0;

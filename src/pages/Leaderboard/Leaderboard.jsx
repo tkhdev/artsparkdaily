@@ -104,7 +104,7 @@ const LeaderboardCard = ({ user, rank, category }) => {
               }}
             />
           </Link>
-          {user.isPro && (
+          {user.plan === 'pro' && (
             <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
               <FontAwesome icon={faCrown} className="text-xs text-white" />
             </div>
@@ -116,7 +116,7 @@ const LeaderboardCard = ({ user, rank, category }) => {
           <Link to={`/profile/${user.id}`}>
             <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
               {user.displayName || "Anonymous"}
-              {user.isPro && (
+              {user.plan === 'pro' && (
                 <span className="text-xs bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-2 py-1 rounded-full font-semibold">
                   PRO
                 </span>
@@ -376,7 +376,7 @@ export default function Leaderboard() {
                         }}
                       />
                     </Link>
-                    {user.isPro && (
+                    {user.plan === 'pro' && (
                       <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
                         <FontAwesome
                           icon={faCrown}
