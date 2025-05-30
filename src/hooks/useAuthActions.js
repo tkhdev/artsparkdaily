@@ -30,8 +30,14 @@ export const useAuthActions = () => {
         paddleCustomerId: null,
         subscriptionStatus: planType === 'pro' ? 'trialing' : 'free',
         subscriptionEndDate: null,
-        extraPromptAttempts: 0,
+        extraPromptAttempts: 0, // Initialize extra prompt attempts
+        extraPromptAttemptsUsed: 0, // Initialize extra prompt attempts used
         customFrames: [],
+        // Achievement tracking
+        totalLikes: 0,
+        totalComments: 0,
+        achievementsCount: 0,
+        lastUpdated: new Date().toISOString(),
         ...(planType === 'pro' && {
           trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           isTrialActive: true,
