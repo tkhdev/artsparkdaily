@@ -23,7 +23,7 @@ export const useAuthActions = () => {
         createdAt: new Date().toISOString(),
         plan: planType,
         planStartDate: new Date().toISOString(),
-        promptAttempts: planType === 'pro' ? 100 : 5,
+        promptAttempts: planType === 'pro' ? 50 : 5,
         dailyAttemptsUsed: 0,
         lastAttemptReset: new Date().toISOString(),
         paddleSubscriptionId: null,

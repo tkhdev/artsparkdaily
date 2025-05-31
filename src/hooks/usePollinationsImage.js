@@ -7,7 +7,8 @@ import {
   query,
   where,
   getDocs,
-  addDoc
+  addDoc,
+  orderBy
 } from "firebase/firestore";
 import { storage, ref, uploadBytes, getDownloadURL } from "../firebase-config";
 import { functions, db } from "../firebase-config";
@@ -54,7 +55,12 @@ export default function usePollinationsImage(challengeId) {
           }
         );
 
-        return { id: generatedImageDoc.id, imageUrl: downloadURL, prompt, createdAt: generatedImageDoc.createdAt };
+        return {
+          id: generatedImageDoc.id,
+          imageUrl: downloadURL,
+          prompt,
+          createdAt: new Date(),
+        };
       } catch (error) {
         throw new Error(`Failed to upload image: ${error.message}`);
       }
@@ -107,13 +113,20 @@ export default function usePollinationsImage(challengeId) {
       const imagesQuery = query(
         collection(db, "generatedImages"),
         where("userId", "==", user.uid),
-        where("challengeId", "==", challengeId)
+        where("challengeId", "==", challengeId),
+        orderBy("createdAt", "desc") // or "asc" for oldest first
       );
       const snapshot = await getDocs(imagesQuery);
-      const images = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const images = snapshot.docs.map((doc) => {
+        const imageData = doc.data();
+        return {
+          id: doc.id,
+          imageUrl: imageData.imageUrl,
+          createdAt: imageData.createdAt,
+          prompt: imageData.prompt,
+
+        };
+      });
       setGeneratedImages(images);
     } catch (err) {
       console.error("Error fetching generated images:", err);
@@ -137,9 +150,10 @@ export default function usePollinationsImage(challengeId) {
     const extraAttempts = profile?.extraPromptAttempts || 0;
     const extraAttemptsUsed = profile?.extraPromptAttemptsUsed || 0;
 
-
     if (attemptsUsed >= baseAttempts && extraAttempts - extraAttemptsUsed < 1) {
-      setError("You have used all your generation attempts for this challenge (including extra attempts)");
+      setError(
+        "You have used all your generation attempts for this challenge (including extra attempts)"
+      );
       return;
     }
 
@@ -149,11 +163,11 @@ export default function usePollinationsImage(challengeId) {
     try {
       // Track the attempt on the backend
       const result = await trackGenerationAttempt({ challengeId });
-      
+
       // Update local state based on backend response
       if (result.data.success) {
         setAttemptsUsed(result.data.attemptsUsed);
-        
+
         // If user used an extra attempt, refresh their profile to get updated extraPromptAttempts
         if (result.data.usedExtraAttempt) {
           await refetchProfile(); // This will update the profile context with new extraPromptAttempts value
@@ -176,7 +190,6 @@ export default function usePollinationsImage(challengeId) {
       const savedImage = await uploadImageToFirebase(pollinationsUrl, prompt);
       setGeneratedImages((prev) => [...prev, savedImage]);
       setImageUrl(pollinationsUrl);
-      
     } catch (err) {
       console.error("Error generating image:", err);
 
@@ -209,9 +222,9 @@ export default function usePollinationsImage(challengeId) {
   // Calculate if user can generate more images
   const baseAttempts = profile?.promptAttempts || 5;
   const extraAttempts = profile?.extraPromptAttempts || 0;
-  const totalAvailableAttempts = baseAttempts + extraAttempts - extraAttemptsUsed;
+  const totalAvailableAttempts =
+    baseAttempts + extraAttempts - extraAttemptsUsed;
   const canGenerate = user && attemptsUsed < totalAvailableAttempts;
-  console.log('canGenerate', attemptsUsed, totalAvailableAttempts);
 
   // Helper to determine if next attempt will use extra attempts
   const willUseExtraAttempt = attemptsUsed >= baseAttempts;
