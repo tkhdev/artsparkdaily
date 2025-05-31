@@ -14,7 +14,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 import { useAuth } from "../../context/AuthContext";
-import "../Gallery/Gallery.css"; // Reuse Gallery.css for consistent styling
+import LoadingState from "../../components/LoadingState";
 
 export default function SubmissionDetail() {
   const { submissionId } = useParams();
@@ -205,148 +205,173 @@ export default function SubmissionDetail() {
 
   if (loading) {
     return (
-      <main className="max-w-4xl mx-auto p-8 text-white">
-        <p>Loading submission...</p>
-      </main>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+        <div className="container mx-auto px-4 py-8">
+          <LoadingState message="Loading submission..." />
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <main className="max-w-4xl mx-auto p-8 text-red-400">
-        <p>{error}</p>
-      </main>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+        <div className="container mx-auto px-4 py-8">
+          <p className="text-red-400 text-center">{error}</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <main className="max-w-4xl mx-auto p-8 rounded-3xl shadow-2xl bg-gradient-to-br from-purple-800 via-pink-800 to-purple-900 my-12 text-white">
-      <Link to="/gallery" className="text-pink-300 hover:underline mb-4 inline-block">
-        <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
-        Back to Gallery
-      </Link>
-
-      <div className="flex flex-col md:flex-row gap-8">
-        <div className="md:w-1/2">
-          <img
-            src={submission.imageUrl}
-            alt={submission.prompt}
-            className="rounded-xl shadow-xl w-full object-cover"
-          />
-        </div>
-
-        <div className="md:w-1/2 flex flex-col gap-4">
-          <h2 className="text-3xl font-bold">{challengeTitle}</h2>
-          <div className="flex items-center gap-2 text-pink-200">
-            <FontAwesomeIcon icon={faUser} />
-            {submission.userDisplayName}
-          </div>
-          <div className="flex items-center gap-2 text-pink-200">
-            <FontAwesomeIcon icon={faCalendarAlt} />
-            {new Date(submission.createdAt).toLocaleDateString()}
-          </div>
-
-          <div className="flex justify-between text-pink-400 text-sm mb-3">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleToggleLike}
-                disabled={likeLoading}
-                className="focus:outline-none hover:scale-110 transition-transform"
-                aria-label={userLikes ? "Unlike submission" : "Like submission"}
-              >
-                <FontAwesomeIcon
-                  icon={userLikes ? faHeart : faHeartOutline}
-                  className={`transition-colors ${userLikes ? "text-red-500" : "text-pink-400"} ${animatingLikes ? "animate-like-pop" : ""}`}
-                  style={{ fontSize: "1.25rem" }}
-                />
-              </button>
-              <span>{likeCounts ?? 0}</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+      {/* Page Header */}
+      <div className="bg-black/20 backdrop-blur-sm border-b border-white/10">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">Submission Details</h1>
+              <p className="text-gray-300">View and interact with this AI-generated artwork</p>
             </div>
-
-            <div className="flex items-center gap-2">
-              <FontAwesomeIcon icon={faComment} />
-              <span>{submissionComments.length}</span>
-            </div>
-          </div>
-
-          {/* Comments Section */}
-          <div className="border-t border-purple-700 pt-3 space-y-3">
-            {/* Existing Comments */}
-            {submissionComments.length > 0 ? (
-              <div className="space-y-2 pr-2">
-                {submissionComments.map((comment, index) => (
-                  <div key={index} className="flex gap-2 text-sm">
-                    <img
-                      src={comment.userPhotoURL || "/default-avatar.png"}
-                      alt={comment.userDisplayName}
-                      className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-0.5"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="font-semibold text-pink-300 text-xs">
-                          {comment.userDisplayName}
-                        </span>
-                        <span className="text-pink-500 text-xs">
-                          {formatCommentDate(comment.createdAt)}
-                        </span>
-                      </div>
-                      <p className="text-white text-sm break-words">
-                        {comment.text}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-pink-500 text-sm text-center py-2">
-                No comments yet. Be the first to comment!
-              </p>
-            )}
-
-            {/* Comment Input */}
-            {user ? (
-              <div className="flex gap-2 pt-2 border-t border-purple-700/50">
-                <img
-                  src={user.photoURL || "/default-avatar.png"}
-                  alt={user.displayName}
-                  className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-1"
-                />
-                <div className="flex-1 flex gap-2">
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => handleCommentChange(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Add a comment..."
-                    className="flex-1 bg-purple-800 text-white text-sm rounded-lg px-3 py-2 border border-purple-600 focus:border-pink-400 focus:outline-none resize-none"
-                    rows="2"
-                    maxLength="500"
-                    disabled={commentLoading}
-                    aria-label="Add a comment"
-                  />
-                  <button
-                    onClick={handleSubmitComment}
-                    disabled={commentLoading || !newComment?.trim()}
-                    className="px-3 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                    aria-label="Submit comment"
-                  >
-                    <FontAwesomeIcon
-                      icon={faPaperPlane}
-                      className={commentLoading ? "animate-pulse" : ""}
-                    />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-pink-500 text-sm text-center py-2">
-                <Link to="/login" className="underline hover:text-pink-400" aria-label="Sign in to comment">
-                  Sign in
-                </Link>{" "}
-                to leave a comment
-              </p>
-            )}
+            <nav className="text-sm text-gray-400">
+              <span>Home</span>
+              <span className="mx-2">/</span>
+              <span className="text-purple-300">Submission</span>
+            </nav>
           </div>
         </div>
       </div>
-    </main>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-3xl shadow-2xl border border-white/10 mb-8">
+            <div className="px-6 py-8 sm:p-10">
+              <div className="flex flex-col md:flex-row gap-8">
+                <div className="md:w-1/2">
+                  <img
+                    src={submission.imageUrl}
+                    alt={submission.prompt}
+                    className="rounded-xl shadow-xl w-full object-cover border border-white/10"
+                  />
+                </div>
+
+                <div className="md:w-1/2 flex flex-col gap-4">
+                  <h2 className="text-3xl font-bold text-white">{challengeTitle}</h2>
+                  <div className="flex items-center gap-2 text-gray-300">
+                    <FontAwesomeIcon icon={faUser} />
+                    <span>{submission.userDisplayName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-300">
+                    <FontAwesomeIcon icon={faCalendarAlt} />
+                    <span>{new Date(submission.createdAt).toLocaleDateString()}</span>
+                  </div>
+
+                  <div className="flex justify-between text-gray-300 text-sm mb-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleToggleLike}
+                        disabled={likeLoading}
+                        className="focus:outline-none hover:scale-110 transition-transform cursor-pointer"
+                        aria-label={userLikes ? "Unlike submission" : "Like submission"}
+                      >
+                        <FontAwesomeIcon
+                          icon={userLikes ? faHeart : faHeartOutline}
+                          className={`transition-colors ${userLikes ? "text-red-400" : "text-gray-300"} ${animatingLikes ? "animate-like-pop" : ""}`}
+                          style={{ fontSize: "1.25rem" }}
+                        />
+                      </button>
+                      <span>{likeCounts ?? 0}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <FontAwesomeIcon icon={faComment} />
+                      <span>{submissionComments.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Comments Section */}
+                  <div className="border-t border-white/10 pt-3 space-y-3">
+                    {/* Existing Comments */}
+                    {submissionComments.length > 0 ? (
+                      <div className="space-y-2 pr-2">
+                        {submissionComments.map((comment, index) => (
+                          <div key={index} className="flex gap-2 text-sm">
+                            <img
+                              src={comment.userPhotoURL || "/default-avatar.png"}
+                              alt={comment.userDisplayName}
+                              className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-0.5"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className="font-semibold text-purple-300 text-xs">
+                                  {comment.userDisplayName}
+                                </span>
+                                <span className="text-gray-400 text-xs">
+                                  {formatCommentDate(comment.createdAt)}
+                                </span>
+                              </div>
+                              <p className="text-gray-300 text-sm break-words">
+                                {comment.text}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-sm text-center py-2">
+                        No comments yet. Be the first to comment!
+                      </p>
+                    )}
+
+                    {/* Comment Input */}
+                    {user ? (
+                      <div className="flex gap-2 pt-2 border-t border-white/10">
+                        <img
+                          src={user.photoURL || "/default-avatar.png"}
+                          alt={user.displayName}
+                          className="w-6 h-6 rounded-full object-cover flex-shrink-0 mt-1"
+                        />
+                        <div className="flex-1 flex gap-2">
+                          <textarea
+                            value={newComment}
+                            onChange={(e) => handleCommentChange(e.target.value)}
+                            onKeyPress={handleKeyPress}
+                            placeholder="Add a comment..."
+                            className="flex-1 bg-black/20 text-gray-300 text-sm rounded-lg px-3 py-2 border border-white/10 focus:border-purple-400 focus:outline-none resize-none"
+                            rows="2"
+                            maxLength="500"
+                            disabled={commentLoading}
+                            aria-label="Add a comment"
+                          />
+                          <button
+                            onClick={handleSubmitComment}
+                            disabled={commentLoading || !newComment?.trim()}
+                            className="w-10 h-10 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 cursor-pointer flex items-center justify-center"
+                            aria-label="Submit comment"
+                          >
+                            <FontAwesomeIcon
+                              icon={faPaperPlane}
+                              className={commentLoading ? "animate-pulse" : ""}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-sm text-center py-2">
+                        <Link to="/login" className="underline hover:text-purple-300 cursor-pointer" aria-label="Sign in to comment">
+                          Sign in
+                        </Link>{" "}
+                        to leave a comment
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

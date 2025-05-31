@@ -608,7 +608,7 @@ export default function Gallery() {
                   >
                     <FontAwesomeIcon
                       icon={userLikes[submission.id] ? faHeart : faHeartOutline}
-                      className={`text-xl transition-colors ${
+                      className={`text-xl transition-colors cursor-pointer ${
                         userLikes[submission.id]
                           ? "text-red-500"
                           : submissionIsWinner
@@ -625,7 +625,7 @@ export default function Gallery() {
 
                   <button
                     onClick={() => handleToggleComments(submission.id)}
-                    className={`flex items-center gap-2 hover:scale-110 transition-all duration-300 focus:outline-none ${
+                    className={`flex items-center gap-2 hover:scale-110 transition-all duration-300 focus:outline-none cursor-pointer ${
                       submissionIsWinner
                         ? "text-yellow-400 hover:text-yellow-300"
                         : "text-pink-400 hover:text-pink-300"

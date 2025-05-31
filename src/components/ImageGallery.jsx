@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react"; // Added useEffect
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCheckCircle,
@@ -6,7 +6,8 @@ import {
   faSpinner,
   faExpand,
   faTh,
-  faList
+  faList,
+  faTimes
 } from "@fortawesome/free-solid-svg-icons";
 import GlowButton from "./GlowButton/GlowButton";
 import ShareMenu from "./ShareMenu";
@@ -34,6 +35,11 @@ const ImageGallery = ({
   const [selectedImage, setSelectedImage] = useState(null);
   const [loadedImages, setLoadedImages] = useState({});
 
+  // Reset loadedImages when images prop changes
+  useEffect(() => {
+    setLoadedImages({});
+  }, [images]);
+
   const sortedImages = [...(images || [])].sort((a, b) => {
     if (a.id === userSubmission?.generatedImageId) return -1;
     if (b.id === userSubmission?.generatedImageId) return 1;
@@ -42,6 +48,10 @@ const ImageGallery = ({
 
   const handleImageLoad = useCallback((imageId) => {
     setLoadedImages((prev) => ({ ...prev, [imageId]: true }));
+  }, []);
+
+  const handleImageError = useCallback((imageId) => {
+    setLoadedImages((prev) => ({ ...prev, [imageId]: true })); // Treat errors as loaded to clear spinner
   }, []);
 
   const formatDate = (timestamp) => {
@@ -71,7 +81,7 @@ const ImageGallery = ({
         <div className="flex gap-2">
           <button
             onClick={() => setViewMode("grid")}
-            className={`p-2 rounded ${
+            className={`w-10 h-10 flex items-center justify-center rounded cursor-pointer ${
               viewMode === "grid" ? "bg-white/20" : "bg-black/30"
             } hover:bg-white/30 transition-colors`}
             aria-label="Grid view"
@@ -80,7 +90,7 @@ const ImageGallery = ({
           </button>
           <button
             onClick={() => setViewMode("list")}
-            className={`p-2 rounded ${
+            className={`w-10 h-10 flex items-center justify-center rounded cursor-pointer ${
               viewMode === "list" ? "bg-white/20" : "bg-black/30"
             } hover:bg-white/30 transition-colors`}
             aria-label="List view"
@@ -129,6 +139,7 @@ const ImageGallery = ({
                 } object-cover rounded-lg cursor-pointer`}
                 onClick={() => setSelectedImage(image)}
                 onLoad={() => handleImageLoad(image.id)}
+                onError={() => handleImageError(image.id)} // Added onError handler
                 loading="lazy"
               />
               {image.id === userSubmission?.generatedImageId && (
@@ -139,7 +150,7 @@ const ImageGallery = ({
               )}
               <button
                 onClick={() => setSelectedImage(image)}
-                className="absolute top-2 right-2 bg-black/50 p-2 rounded-full hover:bg-black/70 transition-colors"
+                className="absolute top-2 right-2 bg-black/50 w-10 h-10 flex items-center justify-center rounded cursor-pointer hover:bg-black/70 transition-colors"
                 aria-label="View full image"
               >
                 <FontAwesomeIcon icon={faExpand} className="text-white" />
@@ -157,7 +168,7 @@ const ImageGallery = ({
                 {!userSubmission && (
                   <GlowButton
                     onClick={() => onSubmit(image)}
-                    className="glow-button bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white text-sm py-2 px-4 rounded"
+                    className="glow-button bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white text-sm py-2 px-4 rounded cursor-pointer"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
@@ -200,21 +211,21 @@ const ImageGallery = ({
           role="dialog"
           aria-label="Image lightbox"
         >
-          <div className="relative max-w-4xl w-full p-4">
+          <div
+            className="relative max-w-4xl w-full p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <img
               src={selectedImage.imageUrl}
               alt={selectedImage.prompt}
               className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
             />
             <button
-              className="absolute top-4 right-4 bg-black/50 p-2 rounded-full hover:bg-black/70 transition-colors"
+              className="absolute top-4 right-4 bg-black/50 w-10 h-10 flex items-center justify-center rounded cursor-pointer hover:bg-black/70 transition-colors"
               onClick={() => setSelectedImage(null)}
               aria-label="Close lightbox"
             >
-              <FontAwesomeIcon
-                icon={faExpand}
-                className="text-white rotate-45"
-              />
+              <FontAwesomeIcon icon={faTimes} className="text-white" />
             </button>
             <div className="mt-4 text-white text-center">
               <p className="text-lg font-medium">{selectedImage.prompt}</p>

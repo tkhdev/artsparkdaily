@@ -33,7 +33,6 @@ export default function FeaturedCreations() {
                 <ArtCard
                   key={idx}
                   submissionId={c.id}
-                  likes={c.likesCount}
                   user={c.user}
                   description={c.description}
                   userAvatar={c.userAvatar}

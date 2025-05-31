@@ -17,7 +17,7 @@ const FAQPage = () => {
     },
     {
       question: "How do prompt attempts work?",
-      answer: "Free users get 5 attempts per daily challenge to generate art with the Pollinations API. Art Spark Pro users get 15 attempts with advanced customization options.",
+      answer: "Free users get 5 attempts per daily challenge to generate art with the Pollinations API. Art Spark Pro users get 50 attempts with advanced customization options.",
     },
     {
       question: "How do I submit to the gallery?",
@@ -37,7 +37,7 @@ const FAQPage = () => {
     },
     {
       question: "What does Art Spark Pro offer?",
-      answer: "The Pro plan includes 15 prompt attempts, ad-free experience, exclusive challenges, and more.",
+      answer: "The Pro plan includes 50 prompt attempts, ad-free experience, exclusive challenges, and more.",
     },
   ];
 
