@@ -69,7 +69,7 @@ const ShareMenu = ({ isOpen, onToggle, imageUrl, prompt, challengeTitle }) => {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => onToggle(!isOpen)}
-        className="bg-gray-800/80 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-700/80"
+        className="bg-gray-800/80 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-700/80 cursor-pointer"
       >
         <FontAwesomeIcon icon={faShareAlt} className="text-white text-xs" />
       </button>

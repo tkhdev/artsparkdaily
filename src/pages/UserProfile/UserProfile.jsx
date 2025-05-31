@@ -309,6 +309,15 @@ export default function UserProfile() {
     }
   }
 
+  // Calculate hours ago for submissions
+  const getHoursAgo = (createdAt) => {
+    if (!createdAt?.toDate) return 0;
+    const now = new Date();
+    const submissionTime = createdAt.toDate();
+    const diffInMs = now - submissionTime;
+    return Math.floor(diffInMs / (1000 * 60 * 60));
+  };
+
   if (loading) {
     return (
       <main className="max-w-7xl mx-auto p-6 sm:p-8 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-800 rounded-3xl shadow-2xl text-gray-100 my-8 select-none">
@@ -368,12 +377,6 @@ export default function UserProfile() {
                   />
                 </div>
               )}
-            </div>
-            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-green-400 to-emerald-500 text-white text-sm font-bold px-4 py-2 rounded-full shadow-lg">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                Online
-              </div>
             </div>
           </div>
 
@@ -444,7 +447,7 @@ export default function UserProfile() {
                   {viewingOwnProfile && (
                     <button
                       onClick={toggleEdit}
-                      className="inline-flex items-center gap-3 bg-gradient-to-r from-pink-600 to-purple-700 hover:from-pink-700 hover:to-purple-800 active:scale-95 transition-all duration-300 rounded-2xl px-8 py-4 font-bold shadow-2xl text-white select-none text-lg hover:shadow-pink-500/30"
+                      className="inline-flex items-center gap-3 bg-gradient-to-r from-pink-600 to-purple-700 hover:from-pink-700 hover:to-purple-800 active:scale-95 transition-all duration-300 rounded-2xl px-8 py-4 font-bold shadow-2xl text-white select-none text-lg hover:shadow-pink-500/30 cursor-pointer"
                       title="Edit your profile"
                     >
                       <FontAwesomeIcon icon={faPen} className="text-xl" />
@@ -574,48 +577,52 @@ export default function UserProfile() {
         {submissions.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {submissions.map((sub) => (
-              <div
+              <article
                 key={sub.id}
-                className="group relative rounded-3xl overflow-hidden shadow-2xl border-2 border-pink-500/40 hover:border-pink-400/70 transition-all duration-500 bg-gradient-to-br from-pink-900/30 to-purple-900/30 hover:scale-105"
+                className="bg-gradient-to-br h-fit from-pink-900/60 to-purple-900/60 border border-pink-600/50 rounded-2xl overflow-hidden hover:scale-105 transition-all duration-300 shadow-xl backdrop-blur-sm flex flex-col"
               >
-                <div className="relative overflow-hidden">
-                  <img
-                    src={sub.imageUrl}
-                    alt={sub.prompt || "Artwork"}
-                    className="w-full h-64 sm:h-80 object-cover transition-transform duration-700 group-hover:scale-110"
-                    onError={(e) => {
-                      e.target.src = sub.originalImageUrl;
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity duration-300"></div>
-                </div>
-                
-                <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
-                  <div className="space-y-3">
-                    <h3 className="text-white font-bold text-lg sm:text-xl drop-shadow-lg group-hover:text-pink-300 transition-colors duration-300 line-clamp-2">
-                      {sub.prompt || "Untitled"}
+                {/* User Header */}
+                <header className="flex items-center gap-3 p-4 pb-2">
+                  <div className="relative">
+                    <img
+                      src={profilePic}
+                      alt={`${displayName}'s avatar`}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-pink-500"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-white font-bold text-lg truncate flex items-center gap-2">
+                      <span className="hover:text-pink-300 transition-colors">
+                        {displayName}
+                      </span>
                     </h3>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="flex items-center gap-2 bg-pink-600/80 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 backdrop-blur-sm">
-                        <FontAwesomeIcon icon={faHeart} className="text-pink-200 text-sm" />
-                        <span className="text-white font-semibold text-sm">{sub.likesCount || 0}</span>
-                      </div>
-                      {sub.featured && (
-                        <div className="bg-purple-600/80 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 backdrop-blur-sm">
-                          <span className="text-white font-semibold text-sm">Featured</span>
-                        </div>
-                      )}
-                      <div className="bg-blue-600/80 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 backdrop-blur-sm">
-                        <span className="text-white font-semibold text-sm">
-                          {new Date(sub.createdAt.toDate()).toLocaleDateString()}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-1 text-pink-400 text-xs">
+                      <span>{getHoursAgo(sub.createdAt)} hours ago</span>
                     </div>
                   </div>
+                </header>
+
+                {/* Image */}
+                <div className="relative mx-4 mb-4 rounded-xl overflow-hidden group">
+                  <Link to={`/submission/${sub.id}`}>
+                    <img
+                      src={sub.imageUrl}
+                      alt={sub.prompt || "Artwork"}
+                      className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-500"
+                      onError={(e) => {
+                        e.target.src = sub.originalImageUrl;
+                      }}
+                      loading="lazy"
+                    />
+                  </Link>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                 </div>
-                
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-pink-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-pink-500/20 group-hover:via-purple-500/20 group-hover:to-pink-500/20 transition-all duration-500 pointer-events-none"></div>
-              </div>
+
+                {/* Footer */}
+                <footer className="p-4 pt-0">
+                  <p className="text-gray-100 text-sm line-clamp-2">{sub.prompt || "Untitled"}</p>
+                </footer>
+              </article>
             ))}
           </div>
         ) : (
