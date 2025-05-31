@@ -394,10 +394,10 @@ export default function Notifications() {
       {/* Enhanced Header */}
       <div className="text-center mb-12">
         <div className="relative inline-block">
-          <h1 className="text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 animate-pulse">
+          <h1 className="text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400">
             Notifications
           </h1>
-          <div className="absolute -inset-1 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg blur opacity-20 animate-pulse"></div>
+          <div className="absolute -inset-1 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg blur opacity-20"></div>
         </div>
         <p className="text-pink-300 text-xl font-medium">
           Stay connected with your creative community

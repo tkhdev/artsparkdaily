@@ -119,7 +119,7 @@ const PricingPage = () => {
       originalPrice: isAnnual ? "59.88" : null,
       description: "Unlock your full creative potential",
       features: [
-        "100 prompt attempts per challenge",
+        "50 prompt attempts per challenge",
         "Advanced prompt customization",
         "Highlighted profile & submissions",
         "Monthly Pro-only challenges",
@@ -421,7 +421,7 @@ const PricingPage = () => {
                   Unlimited Creativity
                 </h4>
                 <p className="text-gray-400">
-                  100 attempts per challenge means endless experimentation
+                  50 attempts per challenge means endless experimentation
                 </p>
               </div>
               <div className="text-center">

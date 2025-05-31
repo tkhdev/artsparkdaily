@@ -168,7 +168,7 @@ async function handleSubscriptionCreated(subscription) {
       planStartDate: subscription.started_at || new Date().toISOString(),
       subscriptionEndDate: subscription.current_billing_period?.ends_at || null,
       billingCycle: isAnnual ? "annual" : "monthly",
-      promptAttempts: 100,
+      promptAttempts: 50,
       isTrialActive: subscription.status === "trialing",
       trialEndsAt: subscription.trial_dates?.ends_at || null,
       lastUpdated: admin.firestore.FieldValue.serverTimestamp()
@@ -229,7 +229,7 @@ async function handleSubscriptionUpdated(subscription) {
       userData.subscriptionStatus !== "active"
     ) {
       updates.plan = "pro";
-      updates.promptAttempts = 100;
+      updates.promptAttempts = 50;
       updates.isTrialActive = false;
 
       await db.collection("notifications").add({
@@ -437,7 +437,7 @@ async function handleSubscriptionResumed(subscription) {
     await userDoc.ref.update({
       subscriptionStatus: "active",
       plan: "pro",
-      promptAttempts: 100,
+      promptAttempts: 50,
       lastUpdated: admin.firestore.FieldValue.serverTimestamp()
     });
 
