@@ -10,7 +10,8 @@ import {
   where,
   doc,
   getDoc,
-  updateDoc
+  updateDoc,
+  startAfter,
 } from "firebase/firestore";
 import {
   getStorage,
@@ -69,5 +70,6 @@ export {
   doc,
   updateDoc,
   httpsCallable,
-  getDoc
+  getDoc,
+  startAfter
 };
