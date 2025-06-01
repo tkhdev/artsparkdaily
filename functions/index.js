@@ -177,16 +177,13 @@ async function handleSubscriptionCreated(subscription) {
     await userRef.update(updateData);
 
     // Send welcome notification
-    await db.collection("notifications").add({
-      userId,
+    await addNotification(userId, {
       type: "subscription",
       title: "Welcome to Art Spark Pro! 🎨",
       message:
         subscription.status === "trialing"
           ? "Your 7-day trial has started. Enjoy unlimited creativity!"
-          : "Your Pro subscription is now active. Create amazing art!",
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+          : "Your Pro subscription is now active. Create amazing art!"
     });
 
     logger.info("Subscription created successfully for user:", userId);
@@ -228,27 +225,17 @@ async function handleSubscriptionUpdated(subscription) {
       subscription.status === "active" &&
       userData.subscriptionStatus !== "active"
     ) {
-      updates.plan = "pro";
-      updates.promptAttempts = 50;
-      updates.isTrialActive = false;
-
-      await db.collection("notifications").add({
-        userId,
+      await addNotification(userId, {
         type: "subscription",
         title: "Subscription Activated! 🎉",
-        message: "Your Pro subscription is now active. Keep creating!",
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        message: "Your Pro subscription is now active. Keep creating!"
       });
     } else if (subscription.status === "past_due") {
-      await db.collection("notifications").add({
-        userId,
+      await addNotification(userId, {
         type: "billing",
         title: "Payment Issue ⚠️",
         message:
-          "We couldn't process your payment. Please update your billing information.",
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+          "We couldn't process your payment. Please update your billing information."
       });
     }
     if (subscription.status === "past_due" && userData.isTrialActive) {
@@ -352,8 +339,7 @@ async function handleSubscriptionCanceled(subscription) {
     await userDoc.ref.update(updates);
 
     // Send cancellation notification
-    await db.collection("notifications").add({
-      userId,
+    await addNotification(userId, {
       type: "subscription",
       title: "Subscription Canceled",
       message:
@@ -361,8 +347,8 @@ async function handleSubscriptionCanceled(subscription) {
         new Date(subscription.canceled_at) <= new Date()
           ? "Your Pro subscription has ended. Thanks for being a Pro user!"
           : "Your subscription will end at the current billing period. You can reactivate anytime.",
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      relatedSubmissionId: winnerDoc.id,
+      relatedChallengeId: challengeId
     });
 
     logger.info("Subscription canceled successfully for user:", userId);
@@ -398,14 +384,11 @@ async function handleSubscriptionPaused(subscription) {
       lastUpdated: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    await db.collection("notifications").add({
-      userId,
+    await addNotification(userId, {
       type: "subscription",
       title: "Subscription Paused",
       message:
-        "Your Pro subscription is paused. Resume anytime to continue enjoying Pro features.",
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+        "Your Pro subscription is paused. Resume anytime to continue enjoying Pro features."
     });
 
     logger.info("Subscription paused successfully for user:", userId);
@@ -441,14 +424,11 @@ async function handleSubscriptionResumed(subscription) {
       lastUpdated: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    await db.collection("notifications").add({
-      userId,
+    await addNotification(userId, {
       type: "subscription",
       title: "Welcome Back! 🎨",
       message:
-        "Your Pro subscription has been resumed. Continue creating amazing art!",
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+        "Your Pro subscription has been resumed. Continue creating amazing art!"
     });
 
     logger.info("Subscription resumed successfully for user:", userId);
@@ -486,13 +466,10 @@ async function handleTransactionCompleted(transaction) {
               admin.firestore.FieldValue.increment(attemptsToAdd)
           });
 
-        await db.collection("notifications").add({
-          userId,
+        await addNotification(userId, {
           type: "purchase",
           title: "Purchase Complete! ✨",
-          message: `Added ${attemptsToAdd} extra prompt attempts to your account.`,
-          read: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          message: `Added ${attemptsToAdd} extra prompt attempts to your account.`
         });
       } else if (item.price.description.includes("Custom Frame")) {
         // Handle custom frame purchase
@@ -505,13 +482,10 @@ async function handleTransactionCompleted(transaction) {
             customFrames: admin.firestore.FieldValue.arrayUnion(frameId)
           });
 
-        await db.collection("notifications").add({
-          userId,
+        await addNotification(userId, {
           type: "purchase",
           title: "New Frame Unlocked! 🖼️",
-          message: "Your custom frame has been added to your collection.",
-          read: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          message: "Your custom frame has been added to your collection."
         });
       }
     }
@@ -534,13 +508,10 @@ async function handleTransactionUpdated(transaction) {
       const userId = customData.userId;
 
       if (userId) {
-        await db.collection("notifications").add({
-          userId,
+        await addNotification(userId, {
           type: "billing",
           title: "Refund Processed",
-          message: "Your refund has been processed successfully.",
-          read: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          message: "Your refund has been processed successfully."
         });
       }
     }
@@ -755,6 +726,105 @@ exports.createDailyChallenge = onSchedule(
       logger.info(`✅ Created ${data.type} daily challenge: ${data.title}`);
     } catch (error) {
       logger.error("❌ Error in scheduled challenge creation:", error);
+      throw error;
+    }
+  }
+);
+
+exports.cleanupOldNotifications = onSchedule(
+  {
+    schedule: "0 0 * * *",
+    timeZone: "UTC"
+  },
+  async (context) => {
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const usersSnapshot = await db.collection("users").get();
+
+      for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+        const notificationsQuery = await db
+          .collection(`users/${userId}/notifications`)
+          .where("read", "==", true)
+          .where(
+            "createdAt",
+            "<",
+            admin.firestore.Timestamp.fromDate(thirtyDaysAgo)
+          )
+          .get();
+
+        const batch = db.batch();
+        let deletedCount = 0;
+
+        notificationsQuery.forEach((doc) => {
+          batch.delete(doc.ref);
+          deletedCount++;
+        });
+
+        if (deletedCount > 0) {
+          const summaryRef = db.doc(
+            `users/${userId}/notificationSummary/summary`
+          );
+          batch.update(summaryRef, {
+            totalCount: admin.firestore.FieldValue.increment(-deletedCount),
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        await batch.commit();
+        logger.info(
+          `Cleaned up ${deletedCount} old notifications for user ${userId}`
+        );
+      }
+
+      logger.info("Completed cleanup of old notifications");
+    } catch (error) {
+      logger.error("Error cleaning up notifications:", error);
+      throw error;
+    }
+  }
+);
+
+exports.syncNotificationCounts = onSchedule(
+  {
+    schedule: "0 0 * * *",
+    timeZone: "UTC"
+  },
+  async (context) => {
+    try {
+      const usersSnapshot = await db.collection("users").get();
+      const batch = db.batch();
+
+      for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+
+        const totalCountQuery = db.collection(`users/${userId}/notifications`);
+        const unreadCountQuery = db
+          .collection(`users/${userId}/notifications`)
+          .where("read", "==", false);
+
+        const [totalSnapshot, unreadSnapshot] = await Promise.all([
+          totalCountQuery.get(),
+          unreadCountQuery.get()
+        ]);
+
+        batch.set(
+          db.doc(`users/${userId}/notificationSummary/summary`),
+          {
+            totalCount: totalSnapshot.size,
+            unreadCount: unreadSnapshot.size,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          },
+          { merge: true }
+        );
+      }
+
+      await batch.commit();
+      logger.info("Synced notification counts for all users");
+    } catch (error) {
+      logger.error("Error syncing notification counts:", error);
       throw error;
     }
   }
@@ -1175,14 +1245,10 @@ exports.toggleSubmissionLike = onCall(async (request) => {
       if (userId !== submission.userId) {
         const likerDoc = await db.doc(`users/${userId}`).get();
         const likerName = likerDoc.data()?.displayName || "Someone";
-
-        await db.collection("notifications").add({
-          userId: submission.userId,
+        await addNotification(submission.userId, {
           type: "like",
           title: "New Like!",
           message: `${likerName} liked your submission`,
-          read: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
           relatedSubmissionId: submissionId,
           relatedUserId: userId
         });
@@ -1264,15 +1330,12 @@ exports.addSubmissionComment = onCall(async (request) => {
     });
 
     if (userId !== submission.userId) {
-      await db.collection("notifications").add({
-        userId: submission.userId,
+      await addNotification(submission.userId, {
         type: "comment",
         title: "New Comment!",
         message: `${
           userData.displayName || "Someone"
         } commented on your submission`,
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         relatedSubmissionId: submissionId,
         relatedUserId: userId
       });
@@ -1447,13 +1510,10 @@ async function determineDailyWinnerInternal(manual = false) {
     }
 
     try {
-      await db.collection("notifications").add({
-        userId: winner.userId,
+      await addNotification(winner.userId, {
         type: "winner",
         title: "Congratulations! 🎉",
         message: `You won yesterday's challenge with ${winner.likesCount} likes!`,
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         relatedSubmissionId: winnerDoc.id,
         relatedChallengeId: challengeId
       });
@@ -1505,13 +1565,10 @@ async function checkAndAwardAchievement(userId, achievementId, metadata = {}) {
       achievementsCount: admin.firestore.FieldValue.increment(1)
     });
 
-    await db.collection("notifications").add({
-      userId,
+    await addNotification(userId, {
       type: "achievement",
       title: "Achievement Unlocked! 🏆",
       message: `You earned "${achievementData.name}"`,
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
       relatedAchievementId: achievementId
     });
 
@@ -1563,4 +1620,29 @@ function getAchievementData(achievementId) {
   };
 
   return achievements[achievementId] || null;
+}
+
+async function addNotification(userId, notificationData) {
+  const batch = db.batch();
+  const notificationRef = db.collection(`users/${userId}/notifications`).doc();
+  batch.set(notificationRef, {
+    ...notificationData,
+    userId,
+    read: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+  const summaryRef = db.doc(`users/${userId}/notificationSummary/summary`);
+  batch.set(
+    summaryRef,
+    {
+      totalCount: admin.firestore.FieldValue.increment(1),
+      unreadCount: admin.firestore.FieldValue.increment(1),
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+    },
+    { merge: true }
+  );
+  await batch.commit();
+  logger.info(
+    `Added notification for user ${userId}: ${notificationData.title}`
+  );
 }
