@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"; // Added useEffect
+import { useState, useCallback, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCheckCircle,
@@ -35,9 +35,18 @@ const ImageGallery = ({
   const [selectedImage, setSelectedImage] = useState(null);
   const [loadedImages, setLoadedImages] = useState({});
 
-  // Reset loadedImages when images prop changes
+  // Preserve already loaded images and only add new ones
   useEffect(() => {
-    setLoadedImages({});
+    if (!images) return;
+    setLoadedImages((prev) => {
+      const updated = { ...prev };
+      for (const image of images) {
+        if (!(image.id in updated)) {
+          updated[image.id] = false;
+        }
+      }
+      return updated;
+    });
   }, [images]);
 
   const sortedImages = [...(images || [])].sort((a, b) => {
@@ -51,7 +60,7 @@ const ImageGallery = ({
   }, []);
 
   const handleImageError = useCallback((imageId) => {
-    setLoadedImages((prev) => ({ ...prev, [imageId]: true })); // Treat errors as loaded to clear spinner
+    setLoadedImages((prev) => ({ ...prev, [imageId]: true }));
   }, []);
 
   const formatDate = (timestamp) => {
@@ -139,7 +148,7 @@ const ImageGallery = ({
                 } object-cover rounded-lg cursor-pointer`}
                 onClick={() => setSelectedImage(image)}
                 onLoad={() => handleImageLoad(image.id)}
-                onError={() => handleImageError(image.id)} // Added onError handler
+                onError={() => handleImageError(image.id)}
                 loading="lazy"
               />
               {image.id === userSubmission?.generatedImageId && (
