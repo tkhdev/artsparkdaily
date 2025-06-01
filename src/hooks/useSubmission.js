@@ -151,7 +151,7 @@ export function useSubmission(challengeId) {
 
       const achievements = [];
 
-      if ((userData.totalSubmissions || 0) + 1 === 1) {
+      if ((userData.totalSubmissions || 0) === 1) {
         achievements.push({
           id: 'first_spark',
           name: 'First Spark',
