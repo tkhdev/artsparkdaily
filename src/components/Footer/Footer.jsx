@@ -26,6 +26,7 @@ function Footer() {
             <h4 className="text-lg font-medium mb-4">Navigation</h4>
             <ul className="space-y-2">
               <li><Link to="/" className="text-gray-400 hover:text-white">Home</Link></li>
+              <li><Link to="/daily-challenge" className="text-gray-400 hover:text-white">Daily Challenge</Link></li>
               <li><Link to="/gallery" className="text-gray-400 hover:text-white">Gallery</Link></li>
               <li><Link to="/leaderboard" className="text-gray-400 hover:text-white">Leaderboard</Link></li>
               <li><Link to="/pricing" className="text-gray-400 hover:text-white">Pricing</Link></li>
