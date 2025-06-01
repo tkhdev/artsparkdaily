@@ -9,11 +9,10 @@ import {
   faChevronDown,
   faBell
 } from "@fortawesome/free-solid-svg-icons";
-import { db, collection, getDocs, query, where } from "../../firebase-config";
+import { db, doc, onSnapshot } from "../../firebase-config";
 import { useAuth } from "../../context/AuthContext";
 import { useAuthActions } from "../../hooks/useAuthActions";
 import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
-import { onSnapshot } from 'firebase/firestore';
 
 // Custom hook to fetch unread notification count
 export function useNotifications() {
@@ -28,20 +27,27 @@ export function useNotifications() {
       return;
     }
 
-    const notificationsQuery = query(
-      collection(db, "notifications"),
-      where("userId", "==", user.uid),
-      where("read", "==", false)
+    const summaryRef = doc(
+      db,
+      "users",
+      user.uid,
+      "notificationSummary",
+      "summary"
     );
 
     const unsubscribe = onSnapshot(
-      notificationsQuery,
-      (snapshot) => {
-        setUnreadCount(snapshot.size);
+      summaryRef,
+      (doc) => {
+        if (doc.exists()) {
+          const data = doc.data();
+          setUnreadCount(data.unreadCount || 0);
+        } else {
+          setUnreadCount(0);
+        }
         setLoading(false);
       },
       (err) => {
-        console.error("Error listening to unread notifications:", err);
+        console.error("Error listening to notification summary:", err);
         setUnreadCount(0);
         setLoading(false);
       }
@@ -84,8 +90,21 @@ function Header() {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-4">
-            {["/", "/daily-challenge", "/gallery", "/leaderboard", "/pricing", ...(user ? ["/notifications"] : [])].map((path) => {
-              const label = path === "/" ? "Home" : (path.replace("/", "").charAt(0).toUpperCase() + path.slice(2)).replaceAll('-', ' ');
+            {[
+              "/",
+              "/daily-challenge",
+              "/gallery",
+              "/leaderboard",
+              "/pricing",
+              ...(user ? ["/notifications"] : [])
+            ].map((path) => {
+              const label =
+                path === "/"
+                  ? "Home"
+                  : (
+                      path.replace("/", "").charAt(0).toUpperCase() +
+                      path.slice(2)
+                    ).replaceAll("-", " ");
               return (
                 <NavLink
                   key={path}
@@ -124,7 +143,10 @@ function Header() {
                     >
                       <FontAwesomeIcon icon={faUserCircle} />
                       <span>{profile.displayName || "User"}</span>
-                      <FontAwesomeIcon icon={faChevronDown} className="ml-1 text-xs" />
+                      <FontAwesomeIcon
+                        icon={faChevronDown}
+                        className="ml-1 text-xs"
+                      />
                     </button>
 
                     {dropdownOpen && (
@@ -175,8 +197,21 @@ function Header() {
         {/* Mobile Nav Menu */}
         {mobileOpen && (
           <div className="md:hidden flex flex-col space-y-2 mt-2">
-            {["/", "/daily-challenge", "/gallery", "/leaderboard", "/pricing", ...(user ? ["/notifications"] : [])].map((path) => {
-              const label = path === "/" ? "Home" : (path.replace("/", "").charAt(0).toUpperCase() + path.slice(2)).replaceAll('-', ' ');
+            {[
+              "/",
+              "/daily-challenge",
+              "/gallery",
+              "/leaderboard",
+              "/pricing",
+              ...(user ? ["/notifications"] : [])
+            ].map((path) => {
+              const label =
+                path === "/"
+                  ? "Home"
+                  : (
+                      path.replace("/", "").charAt(0).toUpperCase() +
+                      path.slice(2)
+                    ).replaceAll("-", " ");
               return (
                 <NavLink
                   key={path}
@@ -200,8 +235,8 @@ function Header() {
               );
             })}
 
-            {!authLoading && (
-              user ? (
+            {!authLoading &&
+              (user ? (
                 <>
                   <Link
                     to="/profile"
@@ -230,8 +265,7 @@ function Header() {
                 >
                   Sign In
                 </button>
-              )
-            )}
+              ))}
           </div>
         )}
       </div>

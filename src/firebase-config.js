@@ -12,6 +12,10 @@ import {
   getDoc,
   updateDoc,
   startAfter,
+  onSnapshot,
+  writeBatch,
+  increment,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   getStorage,
@@ -71,5 +75,9 @@ export {
   updateDoc,
   httpsCallable,
   getDoc,
-  startAfter
+  startAfter,
+  onSnapshot,
+  writeBatch,
+  increment,
+  serverTimestamp,
 };
