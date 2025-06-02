@@ -7,6 +7,7 @@ const {
 } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const logger = require("firebase-functions/logger");
+const { getStorage } = require("firebase-admin/storage");
 const admin = require("firebase-admin");
 const { curatedChallenges } = require("./constants/challenges");
 const { challengeElements } = require("./constants/challengeElements");
@@ -20,6 +21,9 @@ const paddle = new Paddle();
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+
+// Storage
+const storage = getStorage();
 
 // Set global options for all functions
 setGlobalOptions({
