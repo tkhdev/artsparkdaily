@@ -164,7 +164,7 @@ function Header() {
                             logout();
                             setDropdownOpen(false);
                           }}
-                          className="w-full text-left flex items-center px-4 py-2 hover:bg-gray-100 transition-colors"
+                          className="w-full text-left flex items-center px-4 py-2 hover:bg-gray-100 transition-colors cursor-pointer"
                         >
                           <FontAwesomeIcon icon={faSignOut} className="mr-2" />
                           Logout
@@ -174,7 +174,7 @@ function Header() {
                   </div>
                 ) : (
                   <button
-                    className="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 flex items-center space-x-2 transition duration-300"
+                    className="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 flex items-center space-x-2 transition duration-300 cursor-pointer"
                     onClick={loginWithGoogle}
                   >
                     <FontAwesomeIcon icon={faUserCircle} />
@@ -250,7 +250,7 @@ function Header() {
                       logout();
                       setMobileOpen(false);
                     }}
-                    className="block text-left w-full px-4 py-2 text-white hover:bg-white/10 rounded-md"
+                    className="block text-left w-full px-4 py-2 text-white hover:bg-white/10 rounded-md cursor-pointer"
                   >
                     Logout
                   </button>
@@ -261,7 +261,7 @@ function Header() {
                     loginWithGoogle();
                     setMobileOpen(false);
                   }}
-                  className="block text-left w-full px-4 py-2 text-white hover:bg-white/10 rounded-md"
+                  className="block text-left w-full px-4 py-2 text-white hover:bg-white/10 rounded-md cursor-pointer"
                 >
                   Sign In
                 </button>
