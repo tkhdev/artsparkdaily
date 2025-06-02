@@ -350,7 +350,7 @@ const PricingPage = () => {
                   ) : (
                     <button
                       disabled={true}
-                      className="group relative overflow-hidden bg-gradient-to-r from-green-600 to-green-700 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl text-center w-full cursor-not-allowed flex items-center justify-center gap-2"
+                      className="group relative overflow-hidden bg-gradient-to-r from-green-600 to-green-700 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl text-center w-full cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <span className="relative z-10">{plan.text}</span>
                       <FontAwesome icon={faCheck} />

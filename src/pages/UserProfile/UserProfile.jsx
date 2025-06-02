@@ -21,11 +21,11 @@ import { useUserProfile } from "../../hooks/useUserProfile";
 import { useAuth } from "../../context/AuthContext";
 import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
 import toast, { Toaster } from "react-hot-toast";
-import { 
-  storage, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
+import {
+  storage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
   deleteObject,
   db,
   collection,
@@ -56,13 +56,17 @@ export default function UserProfile() {
   const [loading, setLoading] = useState(true);
 
   // Determine user plan status
-  const isPro = ownProfile?.plan === "pro" || ownProfile?.subscriptionStatus === "trialing";
+  const isPro =
+    ownProfile?.plan === "pro" || ownProfile?.subscriptionStatus === "trialing";
 
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.displayName || "");
       setBio(profile.bio || "");
-      setProfilePic(profile.profilePic || "https://i.pravatar.cc/150?img=1");
+      setProfilePic(
+        profile.profilePic ||
+          `https://api.dicebear.com/7.x/thumbs/svg?seed=${profile?.displayName}`
+      );
       setUploadPreview(null);
       setUploadFile(null);
       setIsEditing(false);
@@ -79,14 +83,14 @@ export default function UserProfile() {
     if (!submissions || submissions.length === 0) return 0;
 
     const submissionDates = submissions
-      .map(sub => sub.createdAt?.toDate ? sub.createdAt.toDate() : null)
-      .filter(date => date !== null)
+      .map((sub) => (sub.createdAt?.toDate ? sub.createdAt.toDate() : null))
+      .filter((date) => date !== null)
       .sort((a, b) => b - a);
 
     if (submissionDates.length === 0) return 0;
 
     const getDateString = (date) => {
-      return date.toISOString().split('T')[0];
+      return date.toISOString().split("T")[0];
     };
 
     const today = new Date();
@@ -95,7 +99,9 @@ export default function UserProfile() {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayString = getDateString(yesterday);
 
-    const uniqueDates = [...new Set(submissionDates.map(date => getDateString(date)))];
+    const uniqueDates = [
+      ...new Set(submissionDates.map((date) => getDateString(date)))
+    ];
     uniqueDates.sort((a, b) => new Date(b) - new Date(a));
 
     if (uniqueDates.length === 0) return 0;
@@ -103,7 +109,10 @@ export default function UserProfile() {
     let streak = 0;
     const mostRecentSubmissionDate = uniqueDates[0];
 
-    if (mostRecentSubmissionDate !== todayString && mostRecentSubmissionDate !== yesterdayString) {
+    if (
+      mostRecentSubmissionDate !== todayString &&
+      mostRecentSubmissionDate !== yesterdayString
+    ) {
       return 0;
     }
 
@@ -128,14 +137,19 @@ export default function UserProfile() {
   const fetchUserData = async () => {
     setLoading(true);
     try {
-      const achievementsRef = collection(db, 'users', targetUid, 'achievements');
+      const achievementsRef = collection(
+        db,
+        "users",
+        targetUid,
+        "achievements"
+      );
       const achievementsSnapshot = await getDocs(achievementsRef);
-      const userAchievements = achievementsSnapshot.docs.map(doc => ({
+      const userAchievements = achievementsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data()
       }));
 
-      const mappedAchievements = userAchievements.map(achievement => ({
+      const mappedAchievements = userAchievements.map((achievement) => ({
         icon: getAchievementIcon(achievement.id),
         label: achievement.name,
         value: achievement.description,
@@ -147,15 +161,15 @@ export default function UserProfile() {
 
       setAchievements(mappedAchievements);
 
-      const allSubmissionsRef = collection(db, 'submissions');
+      const allSubmissionsRef = collection(db, "submissions");
       const allSubmissionsQuery = query(
         allSubmissionsRef,
-        where('userId', '==', targetUid),
-        orderBy('createdAt', 'desc')
+        where("userId", "==", targetUid),
+        orderBy("createdAt", "desc")
       );
-      
+
       const allSubmissionsSnapshot = await getDocs(allSubmissionsQuery);
-      const allUserSubmissions = allSubmissionsSnapshot.docs.map(doc => ({
+      const allUserSubmissions = allSubmissionsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data()
       }));
@@ -166,8 +180,8 @@ export default function UserProfile() {
       const displaySubmissions = allUserSubmissions.slice(0, 12);
       setSubmissions(displaySubmissions);
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      toast.error('Failed to load user data');
+      console.error("Error fetching user data:", error);
+      toast.error("Failed to load user data");
     } finally {
       setLoading(false);
     }
@@ -175,62 +189,62 @@ export default function UserProfile() {
 
   const getAchievementIcon = (achievementId) => {
     const iconMap = {
-      'first_spark': faFire,
-      'weekly_streak': faFire,
-      'daily_streak': faFire,
-      'top_submission': faStar,
-      'total_likes': faThumbsUp,
-      'challenges_won': faMedal,
-      'featured_artist': faCrown,
-      'prolific_creator': faImage,
-      'community_favorite': faHeart
+      first_spark: faFire,
+      weekly_streak: faFire,
+      daily_streak: faFire,
+      top_submission: faStar,
+      total_likes: faThumbsUp,
+      challenges_won: faMedal,
+      featured_artist: faCrown,
+      prolific_creator: faImage,
+      community_favorite: faHeart
     };
     return iconMap[achievementId] || faTrophy;
   };
 
   const getAchievementColor = (achievementId) => {
     const colorMap = {
-      'first_spark': 'text-orange-400',
-      'weekly_streak': 'text-orange-400',
-      'daily_streak': 'text-orange-400',
-      'top_submission': 'text-yellow-400',
-      'total_likes': 'text-blue-400',
-      'challenges_won': 'text-purple-400',
-      'featured_artist': 'text-pink-400',
-      'prolific_creator': 'text-green-400',
-      'community_favorite': 'text-red-400'
+      first_spark: "text-orange-400",
+      weekly_streak: "text-orange-400",
+      daily_streak: "text-orange-400",
+      top_submission: "text-yellow-400",
+      total_likes: "text-blue-400",
+      challenges_won: "text-purple-400",
+      featured_artist: "text-pink-400",
+      prolific_creator: "text-green-400",
+      community_favorite: "text-red-400"
     };
-    return colorMap[achievementId] || 'text-gray-400';
+    return colorMap[achievementId] || "text-gray-400";
   };
 
   const getAchievementBgGradient = (achievementId) => {
     const gradientMap = {
-      'first_spark': 'from-orange-500/20 to-red-500/20',
-      'weekly_streak': 'from-orange-500/20 to-red-500/20',
-      'daily_streak': 'from-orange-500/20 to-red-500/20',
-      'top_submission': 'from-yellow-500/20 to-amber-500/20',
-      'total_likes': 'from-blue-500/20 to-cyan-500/20',
-      'challenges_won': 'from-purple-500/20 to-pink-500/20',
-      'featured_artist': 'from-pink-500/20 to-rose-500/20',
-      'prolific_creator': 'from-green-500/20 to-emerald-500/20',
-      'community_favorite': 'from-red-500/20 to-pink-500/20'
+      first_spark: "from-orange-500/20 to-red-500/20",
+      weekly_streak: "from-orange-500/20 to-red-500/20",
+      daily_streak: "from-orange-500/20 to-red-500/20",
+      top_submission: "from-yellow-500/20 to-amber-500/20",
+      total_likes: "from-blue-500/20 to-cyan-500/20",
+      challenges_won: "from-purple-500/20 to-pink-500/20",
+      featured_artist: "from-pink-500/20 to-rose-500/20",
+      prolific_creator: "from-green-500/20 to-emerald-500/20",
+      community_favorite: "from-red-500/20 to-pink-500/20"
     };
-    return gradientMap[achievementId] || 'from-gray-500/20 to-slate-500/20';
+    return gradientMap[achievementId] || "from-gray-500/20 to-slate-500/20";
   };
 
   const getAchievementBorderColor = (achievementId) => {
     const borderMap = {
-      'first_spark': 'border-orange-400/50',
-      'weekly_streak': 'border-orange-400/50',
-      'daily_streak': 'border-orange-400/50',
-      'top_submission': 'border-yellow-400/50',
-      'total_likes': 'border-blue-400/50',
-      'challenges_won': 'border-purple-400/50',
-      'featured_artist': 'border-pink-400/50',
-      'prolific_creator': 'border-green-400/50',
-      'community_favorite': 'border-red-400/50'
+      first_spark: "border-orange-400/50",
+      weekly_streak: "border-orange-400/50",
+      daily_streak: "border-orange-400/50",
+      top_submission: "border-yellow-400/50",
+      total_likes: "border-blue-400/50",
+      challenges_won: "border-purple-400/50",
+      featured_artist: "border-pink-400/50",
+      prolific_creator: "border-green-400/50",
+      community_favorite: "border-red-400/50"
     };
-    return borderMap[achievementId] || 'border-gray-400/50';
+    return borderMap[achievementId] || "border-gray-400/50";
   };
 
   const stats = {
@@ -283,7 +297,9 @@ export default function UserProfile() {
           try {
             const startIndex = profilePic.indexOf("/o/") + 3;
             const endIndex = profilePic.indexOf("?", startIndex);
-            const filePath = decodeURIComponent(profilePic.substring(startIndex, endIndex));
+            const filePath = decodeURIComponent(
+              profilePic.substring(startIndex, endIndex)
+            );
             const oldRef = ref(storage, filePath);
             await deleteObject(oldRef);
             console.log("Old profile picture deleted from storage.");
@@ -292,7 +308,10 @@ export default function UserProfile() {
           }
         }
 
-        const storageRef = ref(storage, `profile-pictures/${targetUid}/${uploadFile.name}`);
+        const storageRef = ref(
+          storage,
+          `profile-pictures/${targetUid}/${uploadFile.name}`
+        );
         await uploadBytes(storageRef, uploadFile);
         profilePicUrl = await getDownloadURL(storageRef);
       }
@@ -324,7 +343,9 @@ export default function UserProfile() {
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-24 w-24 border-t-4 border-pink-400 mx-auto mb-6"></div>
-            <p className="text-pink-300 text-xl font-medium">Loading profile...</p>
+            <p className="text-pink-300 text-xl font-medium">
+              Loading profile...
+            </p>
           </div>
         </div>
       </main>
@@ -339,7 +360,7 @@ export default function UserProfile() {
       <section className="bg-gradient-to-r from-pink-900/90 to-purple-900/90 rounded-3xl p-6 sm:p-8 mb-12 border-2 border-pink-500/60 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-pink-500/15 to-purple-500/15 rounded-full blur-3xl -translate-y-32 translate-x-32"></div>
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-500/15 to-pink-500/15 rounded-full blur-2xl translate-y-24 -translate-x-24"></div>
-        
+
         <div className="relative z-10 flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
           {/* Profile Picture Section */}
           <div className="relative group">
@@ -349,14 +370,6 @@ export default function UserProfile() {
                 alt={displayName || "User Profile"}
                 className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
               />
-              {isPro && (
-                <div className="absolute -top-3 -right-3 w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center border-4 border-purple-900 shadow-lg group">
-                  <FontAwesomeIcon icon={faCrown} className="text-white text-lg" />
-                  <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/80 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    Pro Member
-                  </span>
-                </div>
-              )}
               {isEditing && (
                 <div className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <label
@@ -398,45 +411,77 @@ export default function UserProfile() {
                   <div className="flex items-center justify-center lg:justify-start gap-3 text-pink-300">
                     <FontAwesomeIcon icon={faCalendar} className="text-lg" />
                     <span className="text-lg font-semibold">
-                      Member since {profile?.createdAt?.toDate ? 
-                        new Date(profile.createdAt.toDate()).toLocaleDateString() : 
-                        '2024'
-                      }
+                      Member since{" "}
+                      {profile?.createdAt
+                        ? new Date(profile.createdAt).toLocaleDateString(
+                            undefined,
+                            {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric"
+                            }
+                          )
+                        : "Unknown"}
                     </span>
                   </div>
                 </div>
 
                 <div className="bg-pink-900/50 rounded-2xl p-6 border border-pink-500/40 backdrop-blur-sm">
                   <h3 className="text-pink-300 font-bold text-lg mb-3 flex items-center gap-2">
-                    <FontAwesomeIcon icon={faStar} className="text-yellow-400" />
+                    <FontAwesomeIcon
+                      icon={faStar}
+                      className="text-yellow-400"
+                    />
                     About Me
                   </h3>
                   <p className="text-lg text-white leading-relaxed whitespace-pre-line min-h-[4rem] font-medium">
-                    {bio || "No bio available. Add something about yourself to let others know who you are!"}
+                    {bio ||
+                      "No bio available. Add something about yourself to let others know who you are!"}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-gradient-to-br from-pink-600/40 to-purple-600/40 rounded-xl p-4 border border-pink-400/40 text-center group">
-                    <FontAwesomeIcon icon={faImage} className="text-2xl text-pink-400 mb-2" />
-                    <div className="text-2xl font-bold text-white">{stats.submissions}</div>
-                    <div className="text-pink-300 text-sm font-semibold">Submissions</div>
+                    <FontAwesomeIcon
+                      icon={faImage}
+                      className="text-2xl text-pink-400 mb-2"
+                    />
+                    <div className="text-2xl font-bold text-white">
+                      {stats.submissions}
+                    </div>
+                    <div className="text-pink-300 text-sm font-semibold">
+                      Submissions
+                    </div>
                     <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/80 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       Total Submissions
                     </span>
                   </div>
                   <div className="bg-gradient-to-br from-red-600/40 to-pink-600/40 rounded-xl p-4 border border-red-400/40 text-center group">
-                    <FontAwesomeIcon icon={faHeart} className="text-2xl text-red-400 mb-2" />
-                    <div className="text-2xl font-bold text-white">{stats.likes}</div>
-                    <div className="text-red-300 text-sm font-semibold">Total Likes</div>
+                    <FontAwesomeIcon
+                      icon={faHeart}
+                      className="text-2xl text-red-400 mb-2"
+                    />
+                    <div className="text-2xl font-bold text-white">
+                      {stats.likes}
+                    </div>
+                    <div className="text-red-300 text-sm font-semibold">
+                      Total Likes
+                    </div>
                     <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/80 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       Total Likes Received
                     </span>
                   </div>
                   <div className="bg-gradient-to-br from-orange-600/40 to-yellow-600/40 rounded-xl p-4 border border-orange-400/40 text-center group">
-                    <FontAwesomeIcon icon={faFire} className="text-2xl text-orange-400 mb-2" />
-                    <div className="text-2xl font-bold text-white">{stats.streak}</div>
-                    <div className="text-orange-300 text-sm font-semibold">Day Streak</div>
+                    <FontAwesomeIcon
+                      icon={faFire}
+                      className="text-2xl text-orange-400 mb-2"
+                    />
+                    <div className="text-2xl font-bold text-white">
+                      {stats.streak}
+                    </div>
+                    <div className="text-orange-300 text-sm font-semibold">
+                      Day Streak
+                    </div>
                     <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/80 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       Consecutive Active Days
                     </span>
@@ -519,9 +564,11 @@ export default function UserProfile() {
               Achievements
             </span>
           </h2>
-          <p className="text-pink-300 text-lg">Your milestones and accomplishments</p>
+          <p className="text-pink-300 text-lg">
+            Your milestones and accomplishments
+          </p>
         </div>
-        
+
         {achievements.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {achievements.map((achieve, i) => (
@@ -530,35 +577,52 @@ export default function UserProfile() {
                 className={`bg-gradient-to-br ${achieve.bgGradient} rounded-2xl p-6 shadow-2xl hover:scale-105 transition-all duration-300 border-2 ${achieve.borderColor} relative overflow-hidden group`}
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                
+
                 <div className="relative z-10 text-center">
-                  <div className={`inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-black/20 to-black/40 mb-4 ${achieve.color} text-2xl sm:text-3xl shadow-lg`}>
+                  <div
+                    className={`inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-black/20 to-black/40 mb-4 ${achieve.color} text-2xl sm:text-3xl shadow-lg`}
+                  >
                     <FontAwesomeIcon icon={achieve.icon} />
                   </div>
                   <h3 className="font-bold text-white text-base sm:text-lg mb-2 drop-shadow-lg">
                     {achieve.label}
                   </h3>
-                  <p className={`${achieve.color} font-bold text-sm drop-shadow-lg mb-2`}>
+                  <p
+                    className={`${achieve.color} font-bold text-sm drop-shadow-lg mb-2`}
+                  >
                     {achieve.value}
                   </p>
                   {achieve.unlockedAt && (
                     <p className="text-gray-300 text-xs">
-                      Unlocked {new Date(achieve.unlockedAt.toDate()).toLocaleDateString()}
+                      Unlocked{" "}
+                      {new Date(
+                        achieve.unlockedAt.toDate()
+                      ).toLocaleDateString()}
                     </p>
                   )}
                 </div>
-                
+
                 <div className="absolute top-3 right-3">
-                  <FontAwesomeIcon icon={faTrophy} className="text-yellow-400/30 text-lg" />
+                  <FontAwesomeIcon
+                    icon={faTrophy}
+                    className="text-yellow-400/30 text-lg"
+                  />
                 </div>
               </div>
             ))}
           </div>
         ) : (
           <div className="text-center py-12">
-            <FontAwesomeIcon icon={faTrophy} className="text-5xl sm:text-6xl text-gray-500 mb-4" />
-            <p className="text-gray-400 text-lg sm:text-xl">No achievements yet</p>
-            <p className="text-gray-500 text-sm sm:text-base">Start creating to unlock your first achievement!</p>
+            <FontAwesomeIcon
+              icon={faTrophy}
+              className="text-5xl sm:text-6xl text-gray-500 mb-4"
+            />
+            <p className="text-gray-400 text-lg sm:text-xl">
+              No achievements yet
+            </p>
+            <p className="text-gray-500 text-sm sm:text-base">
+              Start creating to unlock your first achievement!
+            </p>
           </div>
         )}
       </section>
@@ -571,9 +635,11 @@ export default function UserProfile() {
               Art Gallery
             </span>
           </h2>
-          <p className="text-pink-300 text-lg">Your latest creative masterpieces</p>
+          <p className="text-pink-300 text-lg">
+            Your latest creative masterpieces
+          </p>
         </div>
-        
+
         {submissions.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {submissions.map((sub) => (
@@ -620,16 +686,25 @@ export default function UserProfile() {
 
                 {/* Footer */}
                 <footer className="p-4 pt-0">
-                  <p className="text-gray-100 text-sm line-clamp-2">{sub.prompt || "Untitled"}</p>
+                  <p className="text-gray-100 text-sm line-clamp-2">
+                    {sub.prompt || "Untitled"}
+                  </p>
                 </footer>
               </article>
             ))}
           </div>
         ) : (
           <div className="text-center py-12">
-            <FontAwesomeIcon icon={faImage} className="text-5xl sm:text-6xl text-gray-500 mb-4" />
-            <p className="text-gray-400 text-lg sm:text-xl">No submissions yet</p>
-            <p className="text-gray-500 text-sm sm:text-base">Start creating art to build your gallery!</p>
+            <FontAwesomeIcon
+              icon={faImage}
+              className="text-5xl sm:text-6xl text-gray-500 mb-4"
+            />
+            <p className="text-gray-400 text-lg sm:text-xl">
+              No submissions yet
+            </p>
+            <p className="text-gray-500 text-sm sm:text-base">
+              Start creating art to build your gallery!
+            </p>
           </div>
         )}
       </section>
