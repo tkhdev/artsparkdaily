@@ -8,17 +8,13 @@ import {
   faUser,
   faChevronDown,
   faBell,
-  faSpinner, // Import spinner for loading indication
+  faSpinner,
 } from "@fortawesome/free-solid-svg-icons";
-// Make sure db, doc, onSnapshot imports are correct if they move relative to firebase-config
-import { db } from "../../firebase-config"; // Assuming correct path
-import { doc, onSnapshot } from "firebase/firestore"; // Assuming correct path
+import { db } from "../../firebase-config";
+import { doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../../context/AuthContext";
 import { useAuthActions } from "../../hooks/useAuthActions";
-// Assuming useOwnUserProfile hook exists and works as intended to provide `profile`
-import { useOwnUserProfile } from "../../hooks/useOwnUserProfile";
 
-// Custom hook to fetch unread notification count (useNotifications)
 export function useNotifications() {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -58,10 +54,7 @@ export function useNotifications() {
 }
 
 function Header() {
-  // Updated auth logic: using useAuth for user, loading, profile, error
   const { user, loading: authLoading, profile: authProfile, error: authError } = useAuth();
-
-  // Use authProfile directly as the profile source of truth
   const profile = authProfile;
 
   const { loginWithGoogle, logout } = useAuthActions();
@@ -129,11 +122,11 @@ function Header() {
                   }
                 >
                   {path === "/notifications" ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 relative">
                       <FontAwesomeIcon icon={faBell} />
                       {label}
                       {!notificationsLoading && unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        <span className="absolute -top-1 -right-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                           {unreadCount}
                         </span>
                       )}
@@ -149,28 +142,35 @@ function Header() {
             })}
           </div>
 
-          <div className="flex items-center space-x-4 relative">
+          <div className="flex items-center space-x-4 relative min-w-0">
             {/* Desktop User/Login Button */}
-            <div className="hidden md:block">
+            <div className="hidden md:block min-w-0">
               {authLoading ? (
                 <div className="bg-white/5 animate-pulse text-white rounded-full px-4 py-2 flex items-center space-x-2 h-[40px] w-[120px]">
-                   {``}
+                  {/* Loading placeholder */}
                 </div>
               ) : user && profile ? (
                 <div className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen((prev) => !prev)}
-                    className="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 flex items-center space-x-2 transition duration-300 cursor-pointer"
+                    className="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 flex items-center space-x-2 transition duration-300 cursor-pointer max-w-[200px] min-w-[100px] truncate"
+                    title={profile.displayName || "User"}
+                    type="button"
                   >
                     {profile.profilePic ? (
-                        <img src={profile.profilePic} alt="User" className="w-6 h-6 rounded-full"/>
+                      <img src={profile.profilePic} alt="User" className="w-6 h-6 rounded-full flex-shrink-0" />
                     ) : (
-                        <FontAwesomeIcon icon={faUserCircle} />
+                      <FontAwesomeIcon icon={faUserCircle} className="flex-shrink-0" />
                     )}
-                    <span>{profile.displayName || "User"}</span>
+                    <span
+                      className="max-w-[120px] truncate block"
+                      style={{ userSelect: "none" }}
+                    >
+                      {profile.displayName || "User"}
+                    </span>
                     <FontAwesomeIcon
                       icon={faChevronDown}
-                      className={`ml-1 text-xs transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
+                      className={`ml-1 text-xs transition-transform duration-200 flex-shrink-0 ${dropdownOpen ? 'rotate-180' : ''}`}
                     />
                   </button>
 
@@ -199,6 +199,7 @@ function Header() {
                   className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-full px-6 py-2 flex items-center space-x-2 transition duration-300 cursor-pointer"
                   onClick={handleLogin}
                   disabled={authLoading}
+                  type="button"
                 >
                   <FontAwesomeIcon icon={faUserCircle} />
                   <span>Sign In</span>
@@ -210,8 +211,10 @@ function Header() {
             <button
               className="md:hidden text-gray-300 hover:text-white"
               onClick={() => setMobileOpen((prev) => !prev)}
+              aria-label="Toggle mobile menu"
+              type="button"
             >
-              <FontAwesomeIcon icon={faBars} size="lg"/>
+              <FontAwesomeIcon icon={faBars} size="lg" />
             </button>
           </div>
         </div>
@@ -238,10 +241,16 @@ function Header() {
                 <NavLink
                   key={path}
                   to={path}
-                  className={({ isActive }) => `block px-3 py-2 rounded-md text-base font-medium ${isActive ? "bg-white/20 text-white" : "text-gray-300 hover:bg-white/10 hover:text-white"}`}
+                  className={({ isActive }) =>
+                    `block px-3 py-2 rounded-md text-base font-medium ${
+                      isActive
+                        ? "bg-white/20 text-white"
+                        : "text-gray-300 hover:bg-white/10 hover:text-white"
+                    }`
+                  }
                   onClick={() => setMobileOpen(false)}
                 >
-                   {path === "/notifications" ? (
+                  {path === "/notifications" ? (
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <FontAwesomeIcon icon={faBell} />
@@ -252,8 +261,8 @@ function Header() {
                           {unreadCount}
                         </span>
                       )}
-                       {notificationsLoading && user && (
-                         <FontAwesomeIcon icon={faSpinner} className="animate-spin text-xs" />
+                      {notificationsLoading && user && (
+                        <FontAwesomeIcon icon={faSpinner} className="animate-spin text-xs" />
                       )}
                     </div>
                   ) : (
@@ -264,40 +273,42 @@ function Header() {
             })}
 
             <div className="border-t border-white/10 mt-2 pt-2">
-                {authLoading ? (
-                     <div className="px-3 py-2 text-gray-400 flex items-center">
-                        <FontAwesomeIcon icon={faSpinner} className="animate-spin mr-2" /> Authenticating...
-                     </div>
-                ) : user ? (
-                    <>
-                    <Link
-                        to="/profile"
-                        className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-white/10 hover:text-white"
-                        onClick={() => setMobileOpen(false)}
-                    >
-                        Profile
-                    </Link>
-                    <button
-                        onClick={handleLogout}
-                        className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-white/10 hover:text-white cursor-pointer"
-                    >
-                        Logout
-                    </button>
-                    </>
-                ) : (
-                    <button
-                        onClick={handleLogin}
-                        className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-white/10 hover:text-white cursor-pointer"
-                        disabled={authLoading}
-                    >
-                        Sign In
-                    </button>
-                )}
+              {authLoading ? (
+                <div className="px-3 py-2 text-gray-400 flex items-center">
+                  <FontAwesomeIcon icon={faSpinner} className="animate-spin mr-2" /> Authenticating...
+                </div>
+              ) : user ? (
+                <>
+                  <Link
+                    to="/profile"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-white/10 hover:text-white"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    Profile
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-white/10 hover:text-white cursor-pointer"
+                    type="button"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleLogin}
+                  className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-white/10 hover:text-white cursor-pointer"
+                  disabled={authLoading}
+                  type="button"
+                >
+                  Sign In
+                </button>
+              )}
             </div>
             {authError && (
-                <div className="px-3 py-2 text-red-400 text-sm">
-                    Error: {authError}
-                </div>
+              <div className="px-3 py-2 text-red-400 text-sm">
+                Error: {authError}
+              </div>
             )}
           </div>
         )}

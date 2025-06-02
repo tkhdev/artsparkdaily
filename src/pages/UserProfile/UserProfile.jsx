@@ -535,7 +535,7 @@ export default function UserProfile() {
                 <div className="flex gap-4 justify-center lg:justify-start">
                   <button
                     onClick={saveChanges}
-                    className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 active:scale-95 transition-all duration-300 rounded-2xl px-8 py-4 font-bold text-white shadow-2xl select-none text-lg hover:shadow-green-500/30"
+                    className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 active:scale-95 transition-all duration-300 rounded-2xl px-8 py-4 font-bold text-white shadow-2xl select-none text-lg hover:shadow-green-500/30 cursor-pointer"
                     title="Save profile changes"
                   >
                     <FontAwesomeIcon icon={faSave} />
@@ -543,7 +543,7 @@ export default function UserProfile() {
                   </button>
                   <button
                     onClick={cancelEdit}
-                    className="flex items-center gap-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 active:scale-95 transition-all duration-300 rounded-2xl px-8 py-4 font-bold text-white shadow-2xl select-none text-lg"
+                    className="flex items-center gap-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 active:scale-95 transition-all duration-300 rounded-2xl px-8 py-4 font-bold text-white shadow-2xl select-none text-lg cursor-pointer"
                     title="Cancel editing"
                   >
                     <FontAwesomeIcon icon={faTimes} />
