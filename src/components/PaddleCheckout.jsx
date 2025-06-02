@@ -92,11 +92,11 @@ const PaddleCheckout = ({
     console.log("Payment success handler triggered");
     setSuccess(true);
     setShowConfetti(true);
-    refetchProfile();
     resetLoadingState();
     setTimeout(() => {
       setShowConfetti(false);
       setSuccess(false);
+      refetchProfile();
       navigate(
         type === "subscription"
           ? "/welcome?plan=pro&trial=true"
@@ -233,7 +233,7 @@ const PaddleCheckout = ({
         <button
           onClick={retryCheckout}
           disabled={loading || !paddleRef.current}
-          className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2"
+          className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
         >
           {loading ? (
             <>
@@ -268,7 +268,7 @@ const PaddleCheckout = ({
     return (
       <button
         disabled
-        className="group relative overflow-hidden bg-gradient-to-r from-gray-600 to-gray-700 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full opacity-50 flex items-center justify-center gap-2"
+        className="group relative overflow-hidden bg-gradient-to-r from-gray-600 to-gray-700 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full opacity-50 flex items-center justify-center gap-2 cursor-pointer"
       >
         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
         Loading...
@@ -281,7 +281,7 @@ const PaddleCheckout = ({
       <button
         onClick={handleCheckout}
         disabled={loading || success}
-        className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2"
+        className="group relative overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-xl w-full transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
       >
         {loading ? (
           <>
