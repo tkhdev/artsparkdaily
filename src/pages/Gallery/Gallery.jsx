@@ -2,7 +2,6 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faHeart,
   faComment,
-  faEye,
   faPaperPlane,
   faChevronDown,
   faChevronUp,
@@ -53,29 +52,20 @@ export default function Gallery() {
   const toggleSubmissionLike = httpsCallable(functions, "toggleSubmissionLike");
   const addSubmissionComment = httpsCallable(functions, "addSubmissionComment");
 
-  // Track user likes per submission
   const [userLikes, setUserLikes] = useState({});
-  // Track like counts separately to update UI immediately
   const [likeCounts, setLikeCounts] = useState({});
-  // Track loading state per submission
   const [likeLoading, setLikeLoading] = useState({});
-  // Track which submission is currently animating like
   const [animatingLikes, setAnimatingLikes] = useState({});
-  // Comments state
   const [expandedComments, setExpandedComments] = useState({});
   const [newComments, setNewComments] = useState({});
   const [commentLoading, setCommentLoading] = useState({});
   const [submissionComments, setSubmissionComments] = useState({});
-  // Reference to comments containers for scrolling
   const commentsRefs = useRef({});
-  // Winner tracking state
   const [winners, setWinners] = useState({});
   const [winnersLoading, setWinnersLoading] = useState(true);
-  // Share menu state
   const [shareMenuOpen, setShareMenuOpen] = useState({});
   const shareMenuRefs = useRef({});
 
-  // Fetch daily winners
   useEffect(() => {
     const fetchWinners = async () => {
       try {
@@ -104,7 +94,6 @@ export default function Gallery() {
     fetchWinners();
   }, [db]);
 
-  // Initialize userLikes, likeCounts, and comments from submissions & user
   useEffect(() => {
     const updatedLikes = {};
     const updatedCounts = {};
@@ -123,7 +112,6 @@ export default function Gallery() {
     setSubmissionComments(updatedComments);
   }, [submissions, user]);
 
-  // Close share menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       Object.keys(shareMenuRefs.current).forEach((submissionId) => {
@@ -140,17 +128,14 @@ export default function Gallery() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Helper function to check if a submission is a winner
   const isWinner = (submissionId) => {
     return winners[submissionId] !== undefined;
   };
 
-  // Helper function to get winner data
   const getWinnerData = (submissionId) => {
     return winners[submissionId];
   };
 
-  // Helper function to check if a challenge is completed
   const isChallengeCompleted = (challengeId) => {
     const challenge = challenges.find((c) => c.id === challengeId);
     if (!challenge) return false;
@@ -197,18 +182,20 @@ export default function Gallery() {
       const { liked } = result.data;
 
       setUserLikes((prev) => ({ ...prev, [submissionId]: liked }));
+      // Ensure server response dictates final count if possible, or adjust based on confirmed state
+      // For now, this optimistic update is kept, assuming server is generally reliable.
+      // If server returns new count, use `result.data.newLikesCount`
       setLikeCounts((prev) => ({
         ...prev,
-        [submissionId]: liked
-          ? prev[submissionId] >= 0
-            ? prev[submissionId]
-            : 0
-          : Math.max((prev[submissionId] || 1) - 1, 0)
+        [submissionId]: result.data.newLikesCount !== undefined ? result.data.newLikesCount : prev[submissionId] // Example if server returns count
       }));
+
+
     } catch (error) {
       console.error("Error toggling like:", error);
       alert("Failed to toggle like. Please try again.");
 
+      // Revert optimistic updates
       setUserLikes((prev) => ({
         ...prev,
         [submissionId]: !prev[submissionId]
@@ -228,7 +215,6 @@ export default function Gallery() {
     setExpandedComments((prev) => {
       const isExpanding = !prev[submissionId];
       if (isExpanding) {
-        // Scroll to bottom when expanding
         setTimeout(() => {
           const commentsContainer = commentsRefs.current[submissionId];
           if (commentsContainer) {
@@ -237,7 +223,7 @@ export default function Gallery() {
               behavior: 'smooth'
             });
           }
-        }, 0); // Delay to ensure DOM is updated
+        }, 0);
       }
       return {
         ...prev,
@@ -281,21 +267,19 @@ export default function Gallery() {
           ...prev,
           [submissionId]: [...(prev[submissionId] || []), newComment]
         }));
-
-        // Clear the input
         setNewComments((prev) => ({
           ...prev,
           [submissionId]: ""
         }));
-
-        // Scroll to bottom of comments
-        const commentsContainer = commentsRefs.current[submissionId];
-        if (commentsContainer) {
-          commentsContainer.scrollTo({
-            top: commentsContainer.scrollHeight,
-            behavior: 'smooth'
-          });
-        }
+        setTimeout(() => { // Ensure DOM has updated before scrolling
+          const commentsContainer = commentsRefs.current[submissionId];
+          if (commentsContainer) {
+            commentsContainer.scrollTo({
+              top: commentsContainer.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }, 0);
       }
     } catch (error) {
       console.error("Error adding comment:", error);
@@ -314,26 +298,13 @@ export default function Gallery() {
 
   const handleShare = (platform, submissionId, imageUrl, prompt) => {
     const shareText = `Check out this artwork from the gallery! "${prompt}"`;
+    const submissionUrl = `${window.location.origin}/submission/${submissionId}`; // Link to the submission detail page
     const shareUrls = {
-      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-        shareText
-      )}&url=${encodeURIComponent(imageUrl)}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
-        imageUrl
-      )}`,
-      pinterest: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(
-        imageUrl
-      )}&media=${encodeURIComponent(imageUrl)}&description=${encodeURIComponent(
-        shareText
-      )}`,
-      reddit: `https://reddit.com/submit?url=${encodeURIComponent(
-        imageUrl
-      )}&title=${encodeURIComponent(shareText)}`,
-      tumblr: `https://www.tumblr.com/widgets/share/tool?canonicalUrl=${encodeURIComponent(
-        imageUrl
-      )}&caption=${encodeURIComponent(
-        shareText
-      )}&posttype=photo&content=${encodeURIComponent(imageUrl)}`
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(submissionUrl)}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(submissionUrl)}`,
+      pinterest: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(submissionUrl)}&media=${encodeURIComponent(imageUrl)}&description=${encodeURIComponent(shareText)}`,
+      reddit: `https://reddit.com/submit?url=${encodeURIComponent(submissionUrl)}&title=${encodeURIComponent(shareText)}`,
+      tumblr: `https://www.tumblr.com/widgets/share/tool?canonicalUrl=${encodeURIComponent(submissionUrl)}&caption=${encodeURIComponent(shareText)}&posttype=photo&content=${encodeURIComponent(imageUrl)}`
     };
 
     window.open(shareUrls[platform], "_blank", "noopener,noreferrer");
@@ -348,36 +319,21 @@ export default function Gallery() {
   };
 
   const shareOptions = [
-    {
-      platform: "twitter",
-      icon: faTwitter,
-      label: "Twitter",
-      action: handleShare
-    },
-    {
-      platform: "facebook",
-      icon: faFacebookF,
-      label: "Facebook",
-      action: handleShare
-    },
-    {
-      platform: "pinterest",
-      icon: faPinterestP,
-      label: "Pinterest",
-      action: handleShare
-    },
-    {
-      platform: "reddit",
-      icon: faRedditAlien,
-      label: "Reddit",
-      action: handleShare
-    },
+    { platform: "twitter", icon: faTwitter, label: "Twitter", action: handleShare },
+    { platform: "facebook", icon: faFacebookF, label: "Facebook", action: handleShare },
+    { platform: "pinterest", icon: faPinterestP, label: "Pinterest", action: handleShare },
+    { platform: "reddit", icon: faRedditAlien, label: "Reddit", action: handleShare },
     { platform: "tumblr", icon: faTumblr, label: "Tumblr", action: handleShare }
+  ];
+  
+  const sortOptionsList = [
+    { value: "createdAt", label: "Newest", icon: faCalendarAlt },
+    { value: "likesCount", label: "Most Liked", icon: faHeart },
+    { value: "commentsCount", label: "Most Commented", icon: faComment }
   ];
 
   const formatCommentDate = (timestamp) => {
     if (!timestamp) return "";
-
     let date;
     if (timestamp._seconds) {
       date = new Date(timestamp._seconds * 1000);
@@ -386,17 +342,12 @@ export default function Gallery() {
     } else {
       date = new Date(timestamp);
     }
-
-    if (isNaN(date.getTime())) {
-      return "";
-    }
-
+    if (isNaN(date.getTime())) return "";
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-
     if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
@@ -406,7 +357,6 @@ export default function Gallery() {
 
   return (
     <main className="max-w-7xl mx-auto p-8 bg-gradient-to-br from-purple-900 via-pink-900 to-purple-800 rounded-3xl shadow-2xl text-gray-100 my-8 select-none">
-      {/* Header */}
       <header className="text-center mb-12">
         <h1 className="text-5xl font-extrabold mb-4">
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">
@@ -418,23 +368,23 @@ export default function Gallery() {
         </p>
       </header>
 
-      {/* Controls */}
-      <div className="flex flex-wrap justify-center gap-6 mb-12">
+      <div className="flex flex-col md:flex-row justify-center items-center gap-8 mb-12">
+        {/* Filter Challenges */}
         <div className="flex flex-col items-center">
           <div className="flex items-center gap-2 mb-2">
             <FontAwesomeIcon icon={faFilter} className="text-pink-400" />
             <label className="text-sm text-pink-300 font-semibold">
-              Filter Challenges
+              Filter Challenge
             </label>
           </div>
           <select
-            className="bg-gradient-to-r from-pink-900/60 to-purple-900/60 border border-pink-600/50 rounded-xl px-4 py-3 text-white font-semibold hover:bg-pink-800/60 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pink-500"
+            className="bg-gradient-to-r from-pink-900/60 to-purple-900/60 border border-pink-600/50 rounded-xl px-4 py-3 text-white font-semibold hover:bg-pink-800/60 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pink-500 min-w-[200px]"
             value={selectedChallengeId}
             onChange={(e) => setSelectedChallengeId(e.target.value)}
           >
             {challenges.map((challenge) => (
               <option key={challenge.id} value={challenge.id} className="bg-purple-900">
-                {challenge.title} - {challenge.date.toISOString().split("T")[0]}
+                {challenge.title} - {new Date(challenge.date).toLocaleDateString()}
                 {isChallengeCompleted(challenge.id) ? " 👑" : ""}
               </option>
             ))}
@@ -442,6 +392,7 @@ export default function Gallery() {
           </select>
         </div>
 
+        {/* Sort By Buttons */}
         <div className="flex flex-col items-center">
           <div className="flex items-center gap-2 mb-2">
             <FontAwesomeIcon icon={faSort} className="text-pink-400" />
@@ -449,15 +400,22 @@ export default function Gallery() {
               Sort By
             </label>
           </div>
-          <select
-            className="bg-gradient-to-r from-pink-900/60 to-purple-900/60 border border-pink-600/50 rounded-xl px-4 py-3 text-white font-semibold hover:bg-pink-800/60 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pink-500"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-          >
-            <option value="createdAt" className="bg-purple-900">Newest First</option>
-            <option value="likesCount" className="bg-purple-900">Most Liked</option>
-            <option value="commentsCount" className="bg-purple-900">Most Commented</option>
-          </select>
+          <div className="flex flex-wrap justify-center gap-2">
+            {sortOptionsList.map(option => (
+              <button
+                key={option.value}
+                onClick={() => setSortBy(option.value)}
+                className={`cursor-pointer px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pink-500/70 flex items-center gap-2
+                  ${sortBy === option.value 
+                    ? 'bg-pink-600 text-white shadow-md scale-105' 
+                    : 'bg-gradient-to-r from-pink-900/70 to-purple-900/70 text-pink-300 hover:bg-pink-800/80 border border-pink-600/50 hover:text-white'
+                  }`}
+              >
+                <FontAwesomeIcon icon={option.icon} />
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -467,12 +425,12 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Gallery Grid */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
         {submissions.map((submission) => {
           const submissionIsWinner = isWinner(submission.id);
           const winnerData = getWinnerData(submission.id);
           const challengeCompleted = isChallengeCompleted(submission.challengeId);
+          const submissionChallenge = challenges.find(c => c.id === submission.challengeId);
 
           return (
             <article
@@ -483,7 +441,6 @@ export default function Gallery() {
                   : 'from-pink-900/60 to-purple-900/60 border border-pink-600/50'
               } rounded-2xl overflow-hidden hover:scale-105 transition-all duration-300 shadow-xl backdrop-blur-sm`}
             >
-              {/* Winner Banner */}
               {submissionIsWinner && (
                 <div className="bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 text-black text-center py-3 px-4">
                   <div className="flex items-center justify-center gap-2 text-sm font-bold">
@@ -500,9 +457,8 @@ export default function Gallery() {
                 </div>
               )}
 
-              {/* User Header */}
-              <header className="flex items-center gap-3 p-4 pb-2">
-                <div className="relative">
+              <header className="flex items-start gap-3 p-4 pb-2">
+                <div className="relative flex-shrink-0">
                   <img
                     src={submission.userPhotoURL}
                     alt={submission.userDisplayName}
@@ -510,11 +466,6 @@ export default function Gallery() {
                       submissionIsWinner ? 'border-yellow-400' : 'border-pink-500'
                     }`}
                   />
-                  {submissionIsWinner && (
-                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                      <FontAwesomeIcon icon={faCrown} className="text-black text-xs" />
-                    </div>
-                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white font-bold text-lg truncate flex items-center gap-2">
@@ -524,20 +475,21 @@ export default function Gallery() {
                     >
                       {submission.userDisplayName}
                     </Link>
-                    {submissionIsWinner && (
-                      <FontAwesomeIcon icon={faStar} className="text-yellow-400 text-sm" />
-                    )}
                   </h3>
                   {challengeCompleted && !submissionIsWinner && (
-                    <div className="flex items-center gap-1 text-pink-400 text-xs">
+                    <div className="flex items-center gap-1 text-pink-400 text-xs mt-1">
                       <FontAwesomeIcon icon={faCalendarAlt} />
                       <span>Challenge Completed</span>
                     </div>
                   )}
+                   {selectedChallengeId === "all" && submissionChallenge && (
+                    <p className="text-xs text-purple-300 mt-1 truncate" title={`From challenge: ${submissionChallenge.title}`}>
+                      From: {submissionChallenge.title}
+                    </p>
+                  )}
                 </div>
               </header>
 
-              {/* Image */}
               <div className="relative mx-4 mb-4 rounded-xl overflow-hidden group">
                 <Link to={`/submission/${submission.id}`}>
                   <img
@@ -594,62 +546,62 @@ export default function Gallery() {
                 </div>
               </div>
 
-              {/* Footer */}
               <footer className="p-4 pt-0">
-                {/* Stats */}
                 <div className="flex justify-between items-center mb-4">
-                  <button
-                    onClick={() => handleToggleLike(submission.id)}
-                    disabled={likeLoading[submission.id]}
-                    className="flex items-center gap-2 hover:scale-110 transition-transform focus:outline-none group"
-                    aria-label={
-                      userLikes[submission.id] ? "Unlike submission" : "Like submission"
-                    }
-                  >
-                    <FontAwesomeIcon
-                      icon={userLikes[submission.id] ? faHeart : faHeartOutline}
-                      className={`text-xl transition-colors cursor-pointer ${
-                        userLikes[submission.id]
-                          ? "text-red-500"
-                          : submissionIsWinner
-                          ? "text-yellow-400 group-hover:text-red-400"
-                          : "text-pink-400 group-hover:text-red-400"
-                      } ${animatingLikes[submission.id] ? "animate-pulse" : ""}`}
-                    />
-                    <span className={`font-semibold ${
-                      submissionIsWinner ? "text-yellow-300" : "text-pink-300"
-                    }`}>
-                      {likeCounts[submission.id] ?? 0}
-                    </span>
-                  </button>
+                  <div className="flex items-center gap-4"> {/* Group for like and comment */}
+                    <button
+                      onClick={() => handleToggleLike(submission.id)}
+                      disabled={likeLoading[submission.id]}
+                      className="flex items-center gap-2 hover:scale-110 transition-transform focus:outline-none group"
+                      aria-label={
+                        userLikes[submission.id] ? "Unlike submission" : "Like submission"
+                      }
+                    >
+                      <FontAwesomeIcon
+                        icon={userLikes[submission.id] ? faHeart : faHeartOutline}
+                        className={`text-xl transition-colors cursor-pointer ${
+                          userLikes[submission.id]
+                            ? "text-red-500"
+                            : submissionIsWinner
+                            ? "text-yellow-400 group-hover:text-red-400"
+                            : "text-pink-400 group-hover:text-red-400"
+                        } ${animatingLikes[submission.id] ? "animate-pulse" : ""}`}
+                      />
+                      <span className={`font-semibold ${
+                        submissionIsWinner ? "text-yellow-300" : "text-pink-300"
+                      }`}>
+                        {likeCounts[submission.id] ?? 0}
+                      </span>
+                    </button>
 
-                  <button
-                    onClick={() => handleToggleComments(submission.id)}
-                    className={`flex items-center gap-2 hover:scale-110 transition-all duration-300 focus:outline-none cursor-pointer ${
-                      submissionIsWinner
-                        ? "text-yellow-400 hover:text-yellow-300"
-                        : "text-pink-400 hover:text-pink-300"
-                    }`}
-                  >
-                    <FontAwesomeIcon icon={faComment} className="text-lg" />
-                    <span className="font-semibold">
-                      {(submissionComments[submission.id] || []).length}
-                    </span>
-                    <FontAwesomeIcon
-                      icon={expandedComments[submission.id] ? faChevronUp : faChevronDown}
-                      className="text-sm"
-                    />
-                  </button>
-
+                    <button
+                      onClick={() => handleToggleComments(submission.id)}
+                      className={`flex items-center gap-2 hover:scale-110 transition-all duration-300 focus:outline-none cursor-pointer ${
+                        submissionIsWinner
+                          ? "text-yellow-400 hover:text-yellow-300"
+                          : "text-pink-400 hover:text-pink-300"
+                      }`}
+                    >
+                      <FontAwesomeIcon icon={faComment} className="text-lg" />
+                      <span className="font-semibold">
+                        {(submissionComments[submission.id] || []).length}
+                      </span>
+                      <FontAwesomeIcon
+                        icon={expandedComments[submission.id] ? faChevronUp : faChevronDown}
+                        className="text-sm"
+                      />
+                    </button>
+                  </div>
+                  
+                  {/* Submission Date */}
                   <div className={`flex items-center gap-2 text-sm ${
                     submissionIsWinner ? "text-yellow-400" : "text-pink-400"
                   }`}>
-                    <FontAwesomeIcon icon={faEye} />
+                    <FontAwesomeIcon icon={faCalendarAlt} /> {/* Changed icon here */}
                     <span>{new Date(submission.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
 
-                {/* Comments Section */}
                 {expandedComments[submission.id] && (
                   <div className={`border-t ${
                     submissionIsWinner ? 'border-yellow-600/50' : 'border-pink-600/50'
@@ -694,7 +646,6 @@ export default function Gallery() {
                       </div>
                     )}
 
-                    {/* Comment Input */}
                     {user ? (
                       <div className={`flex gap-3 pt-3 border-t ${
                         submissionIsWinner ? 'border-yellow-600/30' : 'border-pink-600/30'
@@ -751,7 +702,6 @@ export default function Gallery() {
         })}
       </section>
 
-      {/* Loading State */}
       {loading && (
         <div className="text-center py-12">
           <div className="inline-flex items-center gap-3 text-pink-300">
@@ -761,12 +711,11 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Load More Button */}
       {!loading && hasMore && (
         <div className="text-center">
           <button
             onClick={loadMore}
-            className="flex items-center gap-3 mx-auto px-8 py-4 bg-gradient-to-r from-pink-600 to-purple-700 text-white font-semibold rounded-2xl hover:from-pink-500 hover:to-purple-600 transition-all duration-300 shadow-xl hover:scale-105"
+            className="flex items-center gap-3 mx-auto px-8 py-4 bg-gradient-to-r from-pink-600 to-purple-700 text-white font-semibold rounded-2xl hover:from-pink-500 hover:to-purple-600 transition-all duration-300 shadow-xl hover:scale-105 cursor-pointer"
           >
             <FontAwesomeIcon icon={faImage} />
             <span>Load More Artwork</span>
