@@ -9,7 +9,7 @@ export const useAuthActions = () => {
   const { dispatch } = useAuth();
   const navigate = useNavigate();
 
-  const createUserProfileIfNotExists = async (user, planType = 'free') => {
+  const createUserProfileIfNotExists = async (user, planType = "free") => {
     const userRef = doc(db, "users", user.uid);
     const docSnap = await getDoc(userRef);
 
@@ -23,12 +23,12 @@ export const useAuthActions = () => {
         createdAt: new Date().toISOString(),
         plan: planType,
         planStartDate: new Date().toISOString(),
-        promptAttempts: planType === 'pro' ? 50 : 5,
+        promptAttempts: planType === "pro" ? 50 : 5,
         dailyAttemptsUsed: 0,
         lastAttemptReset: new Date().toISOString(),
         paddleSubscriptionId: null,
         paddleCustomerId: null,
-        subscriptionStatus: planType === 'pro' ? 'trialing' : 'free',
+        subscriptionStatus: planType === "pro" ? "trialing" : "free",
         subscriptionEndDate: null,
         extraPromptAttempts: 0, // Initialize extra prompt attempts
         extraPromptAttemptsUsed: 0, // Initialize extra prompt attempts used
@@ -38,10 +38,12 @@ export const useAuthActions = () => {
         totalComments: 0,
         achievementsCount: 0,
         lastUpdated: new Date().toISOString(),
-        ...(planType === 'pro' && {
-          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          isTrialActive: true,
-        }),
+        ...(planType === "pro" && {
+          trialEndsAt: new Date(
+            Date.now() + 7 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          isTrialActive: true
+        })
       });
     }
 
@@ -50,33 +52,57 @@ export const useAuthActions = () => {
 
   const loginWithGoogle = async () => {
     try {
-      dispatch({ type: "SET_LOADING" });
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      const userData = await createUserProfileIfNotExists(user);
 
-      dispatch({ type: "LOGIN", payload: { ...user, ...userData } });
+      // Ensure the user profile is created BEFORE anything else
+      await createUserProfileIfNotExists(user);
+
+      // Manually dispatch LOGIN and SET_PROFILE here
+      dispatch({ type: "LOGIN", payload: user });
+
+      const docRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        dispatch({ type: "SET_PROFILE", payload: docSnap.data() });
+      }
+
       navigate("/");
-    } catch (err) {
-      console.error("Google Sign-In Error:", err);
-      dispatch({ type: "SET_ERROR", payload: err.message });
+    } catch (error) {
+      console.error("Google Sign-In Error:", error);
     }
   };
 
-  const signupWithPlan = async (planType = 'free', redirectPath = '/', isAnnual = false) => {
+  const signupWithPlan = async (
+    planType = "free",
+    redirectPath = "/",
+    isAnnual = false
+  ) => {
     try {
       dispatch({ type: "SET_LOADING" });
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
-      const existingUserData = await createUserProfileIfNotExists(user, planType);
+      const existingUserData = await createUserProfileIfNotExists(
+        user,
+        planType
+      );
 
       if (existingUserData) {
         dispatch({ type: "LOGIN", payload: { ...user, ...existingUserData } });
         navigate("/");
       } else {
-        dispatch({ type: "LOGIN", payload: { ...user, plan: planType, isAnnual } });
-        navigate(planType === 'pro' ? `/pricing?plan=pro&trial=true&billing=${isAnnual ? 'annual' : 'monthly'}` : redirectPath);
+        dispatch({
+          type: "LOGIN",
+          payload: { ...user, ...existingUserData, plan: planType, isAnnual }
+        });
+        navigate(
+          planType === "pro"
+            ? `/pricing?plan=pro&trial=true&billing=${
+                isAnnual ? "annual" : "monthly"
+              }`
+            : redirectPath
+        );
       }
     } catch (err) {
       console.error("Google Sign-Up Error:", err);
@@ -84,8 +110,8 @@ export const useAuthActions = () => {
     }
   };
 
-  const signupFree = () => signupWithPlan('free', '/');
-  const signupPro = (isAnnual = false) => signupWithPlan('pro', '/', isAnnual);
+  const signupFree = () => signupWithPlan("free", "/");
+  const signupPro = (isAnnual = false) => signupWithPlan("pro", "/", isAnnual);
 
   const logout = async () => {
     await signOut(auth);
