@@ -39,7 +39,7 @@ export const useAuthActions = () => {
         achievementsCount: 0,
         lastUpdated: new Date().toISOString(),
         ...(planType === "pro" && {
-          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          trialEndsAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
           isTrialActive: true,
         }),
       });
