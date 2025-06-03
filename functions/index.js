@@ -16,7 +16,6 @@ const { defineSecret } = require("firebase-functions/params");
 const { Paddle } = require("@paddle/paddle-node-sdk");
 
 // Initialize Paddle client (no API key needed for webhook verification)
-const paddle = new Paddle();
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -31,6 +30,7 @@ setGlobalOptions({
 });
 
 const PADDLE_WEBHOOK_SECRET = defineSecret("PADDLE_WEBHOOK_SECRET");
+const PADDLE_API_KEY = defineSecret("PADDLE_API_KEY");
 
 // Helper function to require authentication
 function requireAuth(request, functionName) {
@@ -41,11 +41,61 @@ function requireAuth(request, functionName) {
   return request.auth;
 }
 
+// Get Paddle Customer Portal URL
+exports.getPaddlePortalUrl = onCall(
+  {
+    enforceAppCheck: false,
+    secrets: [PADDLE_API_KEY],
+  },
+  async (request) => {
+    try {
+      const auth = requireAuth(request, "getPaddlePortalUrl");
+      const userId = auth.uid;
+      const { redirect_uri } = request.data;
+
+      if (!redirect_uri || typeof redirect_uri !== "string") {
+        throw new HttpsError("invalid-argument", "A valid HTTPS redirect_uri must be provided.");
+      }
+
+      // ✅ Proper SDK initialization
+      const paddle = new Paddle(PADDLE_API_KEY.value(), {
+        environment: "sandbox", // or "production"
+      });
+
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "User not found");
+      }
+
+      const userData = userDoc.data();
+      const paddleCustomerId = userData.paddleCustomerId;
+
+      if (!paddleCustomerId) {
+        throw new HttpsError("failed-precondition", "No Paddle customer ID found. Please subscribe first.");
+      }
+
+      // Generate the customer portal session
+      const session = await paddle.customerPortalSessions.create(paddleCustomerId);
+      // Access the portal URL
+      const portalUrl = session.urls.general.overview;
+
+      return {
+        success: true,
+        portalUrl,
+      };
+    } catch (error) {
+      logger.error("Error generating Paddle portal URL:", error);
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError("internal", "Failed to generate portal URL: " + error.message);
+    }
+  }
+);
+
 exports.paddleWebhook = onRequest(
   {
     cors: false,
     enforceAppCheck: false,
-    secrets: [PADDLE_WEBHOOK_SECRET]
+    secrets: [PADDLE_WEBHOOK_SECRET, PADDLE_API_KEY]
   },
   async (request, response) => {
     try {
@@ -72,6 +122,10 @@ exports.paddleWebhook = onRequest(
       const rawBody = request.rawBody
         ? request.rawBody.toString()
         : JSON.stringify(request.body);
+      
+      const paddle = new Paddle(PADDLE_API_KEY.value(), {
+        environment: "sandbox", // or "production"
+      });
 
       // Verify the webhook signature using the Paddle SDK
       const isValid = await paddle.webhooks.isSignatureValid(

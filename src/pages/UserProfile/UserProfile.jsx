@@ -15,7 +15,8 @@ import {
   faHeart,
   faCalendar,
   faTrophy,
-  faArrowRight
+  faArrowRight,
+  faCreditCard // New icon for billing
 } from "@fortawesome/free-solid-svg-icons";
 import { useUserProfile } from "../../hooks/useUserProfile";
 import { useAuth } from "../../context/AuthContext";
@@ -32,9 +33,10 @@ import {
   query,
   where,
   orderBy,
-  limit,
-  getDocs
-} from "../../firebase-config";
+  getDocs,
+  httpsCallable, // Import httpsCallable
+  functions // Import getApp
+} from "../../firebase-config"; // Ensure firebase-config exports getApp
 
 export default function UserProfile() {
   const { uid: paramUid } = useParams();
@@ -57,7 +59,11 @@ export default function UserProfile() {
 
   // Determine user plan status
   const isPro =
-    ownProfile?.plan === "pro" || ownProfile?.subscriptionStatus === "trialing";
+    ownProfile?.plan === "pro" ||
+    ownProfile?.subscriptionStatus === "trialing" ||
+    ownProfile?.subscriptionStatus === "active";
+
+  const getPaddlePortalUrl = httpsCallable(functions, "getPaddlePortalUrl");
 
   useEffect(() => {
     if (profile) {
@@ -328,6 +334,37 @@ export default function UserProfile() {
     }
   }
 
+  // --- New function to handle Paddle portal access ---
+  const handleManageBilling = async () => {
+    try {
+      const redirect_uri = window.location.origin + "/profile";
+
+      toast.loading("Redirecting to billing portal...", {
+        id: "paddleRedirect"
+      });
+      const result = await getPaddlePortalUrl({ redirect_uri });
+      toast.dismiss("paddleRedirect");
+
+      if (result.data.success && result.data.portalUrl) {
+        window.open(result.data.portalUrl, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Failed to get billing portal URL.");
+      }
+    } catch (error) {
+      toast.dismiss("paddleRedirect");
+      console.error("Error accessing Paddle portal:", error);
+      if (error.code === "not-found") {
+        toast.error("User not found or no Paddle customer ID.");
+      } else if (error.code === "failed-precondition") {
+        toast.error("Please subscribe first to manage billing.");
+      } else if (error.code === "internal") {
+        toast.error("An internal error occurred. Please try again later.");
+      } else {
+        toast.error("Failed to access billing portal: " + error.message);
+      }
+    }
+  };
+
   // Calculate hours ago for submissions
   const getHoursAgo = (createdAt) => {
     if (!createdAt?.toDate) return 0;
@@ -509,6 +546,20 @@ export default function UserProfile() {
                       Switch to Premium
                       <FontAwesomeIcon icon={faArrowRight} />
                     </Link>
+                  )}
+                  {/* New "Manage Billing" Button */}
+                  {viewingOwnProfile && isPro && (
+                    <button
+                      onClick={handleManageBilling}
+                      className="inline-flex items-center gap-3 bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 active:scale-95 transition-all duration-300 rounded-2xl px-8 py-4 font-bold shadow-2xl text-white select-none text-lg hover:shadow-blue-500/30 cursor-pointer"
+                      title="Manage your Paddle billing settings"
+                    >
+                      <FontAwesomeIcon
+                        icon={faCreditCard}
+                        className="text-xl"
+                      />
+                      Manage Billing
+                    </button>
                   )}
                 </div>
               </>
