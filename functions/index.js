@@ -186,7 +186,7 @@ async function handleSubscriptionCreated(subscription) {
       title: "Welcome to Art Spark Pro! 🎨",
       message:
         subscription.status === "trialing"
-          ? "Your 7-day trial has started. Enjoy unlimited creativity!"
+          ? "Your 1-day trial has started. Enjoy unlimited creativity!"
           : "Your Pro subscription is now active. Create amazing art!"
     });
 
