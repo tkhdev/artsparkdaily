@@ -45,7 +45,7 @@ function requireAuth(request, functionName) {
 exports.getPaddlePortalUrl = onCall(
   {
     enforceAppCheck: false,
-    secrets: [PADDLE_API_KEY],
+    secrets: [PADDLE_API_KEY]
   },
   async (request) => {
     try {
@@ -54,12 +54,15 @@ exports.getPaddlePortalUrl = onCall(
       const { redirect_uri } = request.data;
 
       if (!redirect_uri || typeof redirect_uri !== "string") {
-        throw new HttpsError("invalid-argument", "A valid HTTPS redirect_uri must be provided.");
+        throw new HttpsError(
+          "invalid-argument",
+          "A valid HTTPS redirect_uri must be provided."
+        );
       }
 
       // ✅ Proper SDK initialization
       const paddle = new Paddle(PADDLE_API_KEY.value(), {
-        environment: "sandbox", // or "production"
+        environment: "sandbox" // or "production"
       });
 
       const userDoc = await db.collection("users").doc(userId).get();
@@ -71,22 +74,30 @@ exports.getPaddlePortalUrl = onCall(
       const paddleCustomerId = userData.paddleCustomerId;
 
       if (!paddleCustomerId) {
-        throw new HttpsError("failed-precondition", "No Paddle customer ID found. Please subscribe first.");
+        throw new HttpsError(
+          "failed-precondition",
+          "No Paddle customer ID found. Please subscribe first."
+        );
       }
 
       // Generate the customer portal session
-      const session = await paddle.customerPortalSessions.create(paddleCustomerId);
+      const session = await paddle.customerPortalSessions.create(
+        paddleCustomerId
+      );
       // Access the portal URL
       const portalUrl = session.urls.general.overview;
 
       return {
         success: true,
-        portalUrl,
+        portalUrl
       };
     } catch (error) {
       logger.error("Error generating Paddle portal URL:", error);
       if (error instanceof HttpsError) throw error;
-      throw new HttpsError("internal", "Failed to generate portal URL: " + error.message);
+      throw new HttpsError(
+        "internal",
+        "Failed to generate portal URL: " + error.message
+      );
     }
   }
 );
@@ -122,9 +133,9 @@ exports.paddleWebhook = onRequest(
       const rawBody = request.rawBody
         ? request.rawBody.toString()
         : JSON.stringify(request.body);
-      
+
       const paddle = new Paddle(PADDLE_API_KEY.value(), {
-        environment: "sandbox", // or "production"
+        environment: "sandbox" // or "production"
       });
 
       // Verify the webhook signature using the Paddle SDK
@@ -283,6 +294,7 @@ async function handleSubscriptionUpdated(subscription) {
       subscription.status === "active" &&
       userData.subscriptionStatus !== "active"
     ) {
+      updates.isTrialActive = false;
       await addNotification(userId, {
         type: "subscription",
         title: "Subscription Activated! 🎉",
@@ -1425,29 +1437,56 @@ exports.cleanupGeneratedImages = onSchedule(
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split("T")[0];
+      const folderPath = `generatedImages/${yesterdayStr}/`;
 
+      logger.info(`Targeting folder for cleanup: ${folderPath}`);
+
+      // List and delete all files in the folder
+      const bucket = storage.bucket();
+      const [files] = await bucket.getFiles({ prefix: folderPath });
+
+      if (files.length === 0) {
+        logger.info(`No files found in ${folderPath}`);
+      } else {
+        const deleteFilePromises = files.map(async (file) => {
+          try {
+            await file.delete();
+            logger.info(`Deleted file: ${file.name}`);
+          } catch (err) {
+            if (err.code === 404) {
+              logger.warn(`File not found: ${file.name}, skipping`);
+            } else {
+              logger.error(`Error deleting file ${file.name}:`, err);
+            }
+          }
+        });
+        await Promise.all(deleteFilePromises);
+        logger.info(
+          `Deleted ${deleteFilePromises.length} files from ${folderPath}`
+        );
+      }
+
+      // Delete corresponding Firestore documents
       const imagesQuery = await db
         .collection("generatedImages")
         .where("isSubmitted", "==", false)
         .where("createdAt", "<", admin.firestore.Timestamp.fromDate(yesterday))
         .get();
 
-      const deletePromises = imagesQuery.docs.map(async (doc) => {
-        const imageData = doc.data();
-        try {
-          const fileRef = storage
-            .bucket()
-            .file(imageData.imageUrl.split("/o/")[1].split("?")[0]);
-          await fileRef.delete();
-          await doc.ref.delete();
-          logger.info(`Deleted non-submitted image: ${imageData.imageUrl}`);
-        } catch (err) {
-          logger.error(`Error deleting image ${imageData.imageUrl}:`, err);
-        }
-      });
+      if (imagesQuery.empty) {
+        logger.info(`No Firestore documents to delete for ${yesterdayStr}`);
+      } else {
+        const batch = db.batch();
+        imagesQuery.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+        logger.info(
+          `Deleted ${imagesQuery.size} Firestore documents for non-submitted images`
+        );
+      }
 
-      await Promise.all(deletePromises);
-      logger.info("✅ Completed cleanup of non-submitted images");
+      logger.info(`✅ Completed cleanup for ${yesterdayStr}`);
     } catch (error) {
       logger.error("❌ Error in cleanupGeneratedImages:", error);
       throw error;
